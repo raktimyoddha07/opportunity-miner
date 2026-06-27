@@ -1,0 +1,18 @@
+# Python environment
+.venv/
+venv/
+ENV/
+env/
+*.pyc
+__pycache__/
+/frontend-astro
+
+# Local config
+.env
+
+AGENTS.md
+task.md
+
+# Cache/Logs
+.pytest_cache/
+*.log

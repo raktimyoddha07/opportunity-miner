@@ -1,0 +1,19 @@
+You are evaluating startup opportunities.
+Review the evidence below.
+Determine:
+- Is this a real recurring problem?
+- Are users actively frustrated?
+- Would businesses potentially pay for a solution?
+
+Return JSON only.
+{
+  "is_valid": true,
+  "confidence": 0-100,
+  "reasoning": ""
+}
+
+Opportunity Summary:
+{problem}
+
+Evidence:
+{evidence}

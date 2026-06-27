@@ -1,0 +1,33 @@
+You are a startup strategist.
+Analyze this validated opportunity.
+
+For each of the idea types below, produce one concrete, defensible business concept.
+If an idea type is genuinely a poor fit, still produce a plausible angle rather than skipping it.
+
+Idea types to generate:
+- micro_saas
+- ai_agent
+- chrome_extension
+- api_product
+- marketplace
+- service_business
+- internal_tool
+- workflow_automation
+
+Return JSON only. The response MUST be a JSON object with a single key "ideas" mapping
+each idea type above to an object of the form:
+  {{ "title": "...", "description": "..." }}
+
+Example shape:
+{
+  "ideas": {
+    "micro_saas": { "title": "...", "description": "..." },
+    "ai_agent": { "title": "...", "description": "..." }
+  }
+}
+
+Evidence:
+{evidence}
+
+Problem Summary:
+{problem}

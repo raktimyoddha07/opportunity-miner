@@ -1,0 +1,20 @@
+You are a startup researcher.
+Analyze this discussion.
+Determine whether a real pain point exists.
+Return JSON only.
+
+{
+  "has_pain_point": true,
+  "summary": "",
+  "category": "",
+  "intensity": 1-5,
+  "quoted_evidence": "",
+  "confidence": 0-100
+}
+
+Rules:
+- Use exact evidence from the text.
+- Ignore jokes, hypotheticals, startup idea discussions, personal project requests.
+
+Discussion:
+{content}
