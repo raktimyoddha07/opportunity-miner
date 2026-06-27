@@ -98,6 +98,24 @@ export async function deleteRun(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete run: ${res.status}`);
 }
 
+export async function stopRun(id: string): Promise<Run | null> {
+  if (usingMocks) {
+    const run = mock.mockRuns.find((r) => r.id === id);
+    if (run) {
+      run.status = "failed";
+      run.error = "Stopped by user";
+    }
+    return run ?? null;
+  }
+  const res = await fetch(`${BASE_URL}/runs/${id}/stop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to stop run: ${res.status}`);
+  return (await res.json()) as Run;
+}
+
 // ---------------------------------------------------------------------------
 // Opportunities
 // ---------------------------------------------------------------------------

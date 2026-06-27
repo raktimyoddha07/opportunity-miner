@@ -173,3 +173,17 @@ def delete_run(run_id: str, db: Session = Depends(get_db)):
     db.delete(run)  # cascades to all child tables
     db.commit()
     return {"deleted": run_id}
+
+
+@router.post("/{run_id}/stop")
+def stop_run(run_id: str, db: Session = Depends(get_db)):
+    run = db.query(Run).filter(Run.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "running":
+        raise HTTPException(status_code=400, detail="Run is not in running state")
+    run.status = "failed"
+    run.error = "Stopped by user"
+    run.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return serialize_run(run)

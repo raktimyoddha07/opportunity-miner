@@ -23,19 +23,36 @@ from backend.pipeline.nodes.validate import validate_node
 from backend.pipeline.nodes.generate import generate_node
 
 
+def check_cancel_wrapper(node_func):
+    def wrapper(state):
+        run_id = state.get("run_id")
+        if run_id:
+            from backend.db.connection import SessionLocal
+            from backend.db.models import Run
+            db = SessionLocal()
+            try:
+                run = db.query(Run).filter(Run.id == run_id).first()
+                if run and (run.status == "failed" or run.error == "Stopped by user"):
+                    raise RuntimeError("Stopped by user")
+            finally:
+                db.close()
+        return node_func(state)
+    return wrapper
+
+
 def build_pipeline():
     """Construct and compile the full pipeline graph. Returns the runnable app."""
     workflow = StateGraph(PipelineState)
 
     # 1. Register every node
-    workflow.add_node("collect", collect_node)
-    workflow.add_node("clean", clean_node)
-    workflow.add_node("extract", extract_node)
-    workflow.add_node("deduplicate", deduplicate_node)
-    workflow.add_node("cluster", cluster_node)
-    workflow.add_node("score", score_node)
-    workflow.add_node("validate", validate_node)
-    workflow.add_node("generate", generate_node)
+    workflow.add_node("collect", check_cancel_wrapper(collect_node))
+    workflow.add_node("clean", check_cancel_wrapper(clean_node))
+    workflow.add_node("extract", check_cancel_wrapper(extract_node))
+    workflow.add_node("deduplicate", check_cancel_wrapper(deduplicate_node))
+    workflow.add_node("cluster", check_cancel_wrapper(cluster_node))
+    workflow.add_node("score", check_cancel_wrapper(score_node))
+    workflow.add_node("validate", check_cancel_wrapper(validate_node))
+    workflow.add_node("generate", check_cancel_wrapper(generate_node))
 
     # 2. Linear flow
     workflow.set_entry_point("collect")
@@ -49,6 +66,7 @@ def build_pipeline():
     workflow.add_edge("generate", END)
 
     return workflow.compile()
+
 
 
 # Compiled app, importable by API/services.
