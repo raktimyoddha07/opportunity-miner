@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Boxes, ListChecks, TrendingUp, Trophy } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { ScoreBadge } from "@/components/score-badge";
@@ -17,6 +19,7 @@ import { CATEGORY_LABELS } from "@/lib/constants";
 import { getOpportunities, getClusters, getRuns, getTrendSnapshots } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import { DashboardCharts } from "@/components/dashboard-charts";
+import { ExportDropdown } from "@/components/export-dropdown";
 
 export default async function DashboardPage() {
   const [opportunities, clusters, runs, trends] = await Promise.all([
@@ -64,9 +67,12 @@ export default async function DashboardPage() {
         title="Dashboard"
         description="Top opportunities, category distribution, and trend signals across runs."
         actions={
-          <Button asChild>
-            <Link href="/opportunities">View all</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportDropdown />
+            <Button asChild>
+              <Link href="/opportunities">View all</Link>
+            </Button>
+          </div>
         }
       />
 

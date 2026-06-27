@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, Loader2, XCircle, Square, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, CheckCircle2, Loader2, XCircle, Square, Trash2, Play } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
 import {
   ChartContainer,
   ChartTooltip,
@@ -23,7 +25,82 @@ import {
 } from "@/components/ui/table";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import type { Run, RunStatus, TrendSnapshot } from "@/lib/types";
-import { stopRun, deleteRun } from "@/lib/api";
+import { stopRun, deleteRun, getRuns, getSettings, startRun } from "@/lib/api";
+
+// Shared AudioContext for overcoming browser autoplay block
+let sharedCtx: AudioContext | null = null;
+
+function getAudioContext() {
+  if (typeof window === "undefined") return null;
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!sharedCtx) {
+    sharedCtx = new AudioContextClass();
+  }
+  if (sharedCtx.state === "suspended") {
+    sharedCtx.resume().catch(() => {});
+  }
+  return sharedCtx;
+}
+
+function playNotificationSound(type: "success" | "error") {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    
+    if (type === "success") {
+      // Pleasant double-chime (ascending)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+      
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15); // E5
+      gain2.gain.setValueAtTime(0.1, ctx.currentTime + 0.15);
+      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+      osc2.start(ctx.currentTime + 0.15);
+      osc2.stop(ctx.currentTime + 0.45);
+    } else {
+      // Alert chime (descending/flat warning)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(329.63, ctx.currentTime); // E4
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.4);
+      
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.type = "triangle";
+      osc2.frequency.setValueAtTime(261.63, ctx.currentTime + 0.15); // C4
+      gain2.gain.setValueAtTime(0.15, ctx.currentTime + 0.15);
+      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.65);
+      osc2.start(ctx.currentTime + 0.15);
+      osc2.stop(ctx.currentTime + 0.65);
+    }
+  } catch (err) {
+    console.warn("Failed to play notification sound:", err);
+  }
+}
 
 const statusMeta: Record<
   RunStatus,
@@ -40,10 +117,40 @@ interface RunsClientPageProps {
 }
 
 export function RunsClientPage({ initialRuns, initialTrends }: RunsClientPageProps) {
+  const router = useRouter();
   const [runs, setRuns] = React.useState<Run[]>(initialRuns);
   const [trends, setTrends] = React.useState<TrendSnapshot[]>(initialTrends);
   const [stoppingId, setStoppingId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [starting, setStarting] = React.useState(false);
+  const [message, setMessage] = React.useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  // Sync state with server component props when they re-fetch (router.refresh())
+  React.useEffect(() => {
+    setRuns(initialRuns);
+  }, [initialRuns]);
+
+  React.useEffect(() => {
+    setTrends(initialTrends);
+  }, [initialTrends]);
+
+  // Unlock AudioContext on first user interaction
+  React.useEffect(() => {
+    function unlock() {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      window.removeEventListener("click", unlock);
+      window.removeEventListener("keydown", unlock);
+    }
+    window.addEventListener("click", unlock);
+    window.addEventListener("keydown", unlock);
+    return () => {
+      window.removeEventListener("click", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   // Compare cluster frequency across the two most recent runs.
   const dates = [...new Set(trends.map((t) => formatDate(t.snapshot_date)))].sort();
@@ -67,6 +174,74 @@ export function RunsClientPage({ initialRuns, initialTrends }: RunsClientPagePro
     [lastTwo[0] ?? "prev"]: { label: lastTwo[0] ?? "Previous", color: "hsl(var(--chart-4))" },
     [lastTwo[1] ?? "curr"]: { label: lastTwo[1] ?? "Latest", color: "hsl(var(--chart-1))" },
   };
+
+  // Poll for runs every 5 seconds if a run is running.
+  React.useEffect(() => {
+    const hasRunning = runs.some((r) => r.status === "running");
+    if (!hasRunning) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const latestRuns = await getRuns();
+        let changed = false;
+
+        latestRuns.forEach((r) => {
+          const prevRun = runs.find((p) => p.id === r.id);
+          if (prevRun && prevRun.status === "running" && r.status !== "running") {
+            changed = true;
+            if (r.status === "completed") {
+              playNotificationSound("success");
+            } else if (r.status === "failed") {
+              playNotificationSound("error");
+            }
+          }
+        });
+
+        if (changed) {
+          // Trigger server refresh to load updated trends and data
+          router.refresh();
+        } else {
+          setRuns(latestRuns);
+        }
+      } catch (err) {
+        console.error("Polling runs failed", err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [runs, router]);
+
+  async function handleStartRun() {
+    setStarting(true);
+    setMessage(null);
+    try {
+      // Direct call warms up/resumes AudioContext inside click interaction
+      getAudioContext();
+
+      const currentSettings = await getSettings();
+      if (!currentSettings.subreddits || currentSettings.subreddits.length === 0) {
+        throw new Error("No subreddits configured. Go to Settings to add subreddits.");
+      }
+      const newRun = await startRun({
+        subreddits: currentSettings.subreddits,
+        llm_config: currentSettings.llm_config as unknown as Record<string, unknown>,
+      });
+      if (newRun) {
+        setRuns((prev) => [newRun, ...prev]);
+        setMessage({ kind: "ok", text: "Run started successfully!" });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to start run.");
+      playNotificationSound("error");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  // Fallback setter just in case
+  function setErrorMsg(text: string) {
+    setMessage({ kind: "err", text });
+  }
 
   async function handleStop(runId: string) {
     setStoppingId(runId);
@@ -98,6 +273,28 @@ export function RunsClientPage({ initialRuns, initialTrends }: RunsClientPagePro
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Runs"
+        description="Pipeline execution history and frequency comparisons across runs."
+        actions={
+          <Button onClick={handleStartRun} disabled={starting}>
+            <Play className="mr-2 h-4 w-4 fill-current" />
+            {starting ? "Starting..." : "Start run"}
+          </Button>
+        }
+      />
+
+      {message ? (
+        <div
+          className={
+            message.kind === "ok"
+              ? "rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+              : "rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
+          }
+        >
+          {message.text}
+        </div>
+      ) : null}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -143,7 +340,7 @@ export function RunsClientPage({ initialRuns, initialTrends }: RunsClientPagePro
                   <TableCell className="text-right space-x-2">
                     {run.status === "running" && (
                       <Button
-                        size="xs"
+                        size="sm"
                         variant="destructive"
                         onClick={() => handleStop(run.id)}
                         disabled={stoppingId === run.id}
@@ -154,7 +351,7 @@ export function RunsClientPage({ initialRuns, initialTrends }: RunsClientPagePro
                       </Button>
                     )}
                     <Button
-                      size="xs"
+                      size="sm"
                       variant="ghost"
                       onClick={() => handleDelete(run.id)}
                       disabled={deletingId === run.id}

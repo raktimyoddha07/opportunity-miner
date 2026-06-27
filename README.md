@@ -6,119 +6,104 @@ The core value of this system is not just generating ideas, but maintaining a gr
 
 ---
 
-## Architecture & Tech Stack
+## 🎨 How to Use (Core Sections)
 
-```
-                                  [ Next.js Frontend ]
-                                           │
-                                           ▼ (REST API)
-                                   [ FastAPI Backend ]
-                                           │
-                                           ▼
-                                 [ LangGraph Pipeline ]
-  ┌─────────┐     ┌───────┐     ┌─────────┐     ┌────────────┐     ┌─────────┐     ┌───────┐     ┌──────────┐     ┌──────────┐
-  │ collect │ ──> │ clean │ ──> │ extract │ ──> │deduplicate │ ──> │ cluster │ ──> │ score │ ──> │ validate │ ──> │ generate │
-  └─────────┘     └───────┘     └─────────┘     └────────────┘     └─────────┘     └───────┘     └──────────┘     └──────────┘
-       │                              │                                                              │                 │
-       ▼ (Save raw)                   ▼ (LLM Extract)                                                ▼ (LLM Validate)  ▼ (LLM Ideas)
-  [ Postgres DB ]                [ LLM Providers ]                                              [ LLM Providers ]  [ LLM Providers]
-```
+The web application is divided into five core sections, designed to take you from configuration to execution and analysis:
 
-- **Backend**: Python 3.11+, FastAPI, Uvicorn, SQLAlchemy ORM
-- **Database**: PostgreSQL (UUID keys, JSONB metadata, cascading constraints)
-- **Pipeline Orchestration**: LangGraph (StateGraph)
-- **LLM Integration**: LangChain (factory-driven, provider-agnostic)
-- **Data Source**: PRAW (Reddit API client)
-- **Frontend**: Next.js, React, TailwindCSS, Recharts, Radix UI (Shadcn/UI components)
+### 1. Settings & Config (`/settings`)
+* **LLM Setup**: Configure LLM settings using various providers. Select `ollama`, set the model to `qwen2.5:7b-instruct`, and use the default base URL `http://localhost:11434`.
+* **Targets**: Add target subreddits (e.g., `selfhosted`, `excel`, `sysadmin`, `productivity`, `sideproject`, `saas`) to scrape.
+* **Pipeline Controls**: Adjust scrape depth, comment limits, and duplication thresholds before triggering a run.
 
----
+### 2. Dashboard & Trends (`/`)
+* **Overview**: View your database statistics, including total raw documents collected, active clusters, validated opportunities, and generated ideas.
+* **Trend Analysis**: Monitor cluster frequencies over multiple runs to identify emerging customer frustrations early.
+* **Breakdown**: Visualize pain points by categories (e.g., `manual_work`, `bad_software`, `automation`).
 
-## Features
+### 3. Validated Opportunities (`/opportunities`)
+* **Ranked List**: View opportunities that passed the validation threshold (e.g., minimum of 10 mentions, 3 unique users, 2 threads, average confidence $\ge$ 2.0).
+* **Detailed Breakdown**: Click any opportunity to see its exact problem statement, validation score reasoning, and direct links to evidence and generated ideas.
 
-1. **Reddit Collector**: Recursive comment crawler extracting deep context from any list of subreddits across `hot`, `top`, `rising`, and `new` feeds.
-2. **Text Filtering**: Discards low-signal comments, meta-discussions, promotional spam, and deleted content.
-3. **Structured Extraction**: Extracts validated pain points with intensity, category, and raw quoted evidence.
-4. **Deduplication**: Collapses semantically duplicate pain points using configurable embedding similarities.
-5. **Clustering & Trend Snapshotting**: Groups pain points by categories and detects emerging trends over time.
-6. **Multi-Format Opportunity Validation**: Rejects low-confidence ideas and requires minimum validation thresholds (mentions, users, threads).
-7. **Idempotent Idea Generator**: Generates ideas for multiple business types (`micro_saas`, `ai_agent`, `chrome_extension`, etc.) from validated problems.
-8. **Auditable Trust Layer**: Complete trace from Opportunity → Cluster → Pain Point → Original Post + Permalinks.
+### 4. Trust Layer: Clusters & Evidence (`/clusters` & `/evidence`)
+* **Semantic Clusters**: Examine how raw complaints are grouped using text embedding similarity.
+* **Source Traceability**: Every opportunity contains a trust layer where you can view the actual Reddit comments, author names, and direct URLs to the original Reddit threads.
+
+### 5. Business Ideas (`/ideas`)
+* **Multi-Format Solutions**: View AI-generated startup concepts targeting validated opportunities.
+* **Formats**: Generates ideas spanning `micro_saas`, `ai_agent`, `chrome_extension`, `api_product`, `marketplace`, `service_business`, `internal_tool`, and `workflow_automation`.
 
 ---
 
-## Configuration
+## 🛠️ Tech Stack
 
-Copy `.env.example` in the `frontend/` directory (if configuring the client URL) and configure `.env` in the root or `backend/` directory for the backend server.
-
-### Backend Environment Variables (`backend/.env`)
-
-```ini
-# Environment
-ENV=development
-DEBUG=true
-
-# PostgreSQL Database (Must exist)
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/reddit_miner
-
-# Reddit API Credentials
-REDDIT_CLIENT_ID=your_reddit_client_id
-REDDIT_CLIENT_SECRET=your_reddit_client_secret
-REDDIT_USER_AGENT=RedditOpportunityMiner/0.1
-REDDIT_USERNAME=your_reddit_username
-REDDIT_PASSWORD=your_reddit_password
-
-# LLM Providers Keys (Optional - depends on selected active provider)
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
-GROQ_API_KEY=your_groq_key
-GEMINI_API_KEY=your_gemini_key
-OLLAMA_BASE_URL=http://localhost:11434
-```
+* **Backend**: Python 3.11+, FastAPI, Uvicorn, SQLAlchemy ORM, LangGraph (StateGraph)
+* **Database**: PostgreSQL (UUID keys, JSONB metadata, cascading constraints)
+* **LLM Integration**: LangChain (factory-driven, provider-agnostic via `factory.py`)
+* **Frontend**: Next.js, React, TailwindCSS, Recharts, Shadcn/UI
+* **Data Source**: PRAW (Reddit API client)
 
 ---
 
-## Getting Started
+## 🚀 Setup & Installation
 
-### 1. Setup & Start Backend
+### 1. Prerequisites
+- **PostgreSQL**: Install and ensure a PostgreSQL server is running. Create a database named `reddit_miner`.
+- **Ollama**: Install [Ollama](https://ollama.com) and pull your model of choice in your terminal:
+  ```bash
+  ollama pull qwen2.5:7b-instruct
+  ```
 
-Navigate to the `backend/` directory, set up your virtual environment, install requirements, and run the FastAPI server:
+### 2. Backend Setup
+1. Navigate to the `backend/` directory:
+   ```bash
+   cd backend
+   ```
+2. Create and activate a Python virtual environment:
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate   # On Windows
+   # source .venv/bin/activate # On macOS/Linux
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Create a `.env` file in the `backend/` directory:
+   ```ini
+   ENV=development
+   DEBUG=true
+   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/reddit_miner
+   REDDIT_CLIENT_ID=your_reddit_client_id
+   REDDIT_CLIENT_SECRET=your_reddit_client_secret
+   OLLAMA_BASE_URL=http://localhost:11434
+   ```
+5. Start the FastAPI server:
+   ```bash
+   uvicorn main:app --reload --port 8000
+   ```
+   The backend will start at `http://localhost:8000` (docs available at `http://localhost:8000/docs`).
 
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the app (Automatically creates database tables on startup)
-uvicorn main:app --reload --port 8000
-```
-
-The server will be available at `http://localhost:8000`. You can visit `http://localhost:8000/docs` to explore interactive Swagger API documentation.
-
-### 2. Setup & Start Frontend
-
-Navigate to the `frontend/` directory, configure your API URL, install packages, and start Next.js:
-
-```bash
-cd frontend
-
-# Set the API URL endpoint
-echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
-
-# Install and start
-npm install
-npm run dev
-```
-
-The frontend will run at `http://localhost:3000`.
+### 3. Frontend Setup
+1. Navigate to the `frontend/` directory:
+   ```bash
+   cd ../frontend
+   ```
+2. Create a `.env` file in the `frontend/` directory:
+   ```ini
+   NEXT_PUBLIC_API_URL=http://localhost:8000
+   ```
+3. Install dependencies and start the Next.js development server:
+   ```bash
+   npm install
+   npm run dev
+   ```
+   The frontend will run at `http://localhost:3000`.
 
 ---
 
-## Exports
+## 📥 Exports
 
-Export opportunity data via REST endpoints:
-- **CSV**: `/export/csv`
-- **JSON**: `/export/json`
-- **Markdown Report**: `/export/markdown`
+You can download your opportunities in various formats directly via the browser or API endpoints:
+- **JSON**: `http://localhost:8000/export/json` (full nested details)
+- **Markdown**: `http://localhost:8000/export/markdown` (formatted report)
+- **CSV**: `http://localhost:8000/export/csv` (tabular structure)

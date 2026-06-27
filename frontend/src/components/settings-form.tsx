@@ -97,7 +97,10 @@ export function SettingsForm({ initial }: { initial: Settings }) {
     setStarting(true);
     setMessage(null);
     try {
-      await startRun({ subreddits: settings.subreddits, llm_config: settings.llm_config });
+      await startRun({
+        subreddits: settings.subreddits,
+        llm_config: settings.llm_config as unknown as Record<string, unknown>,
+      });
       setMessage({
         kind: "ok",
         text: usingMocks

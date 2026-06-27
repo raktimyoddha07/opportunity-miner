@@ -160,3 +160,22 @@ class TrendSnapshot(Base):
 
     # Relationships
     run = relationship("Run", back_populates="trend_snapshots")
+
+
+class PipelineSettings(Base):
+    """
+    Persists the user's preferred subreddits and pipeline config across sessions.
+    Only one active row is kept at a time (is_active=True).
+    """
+    __tablename__ = "pipeline_settings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    subreddits = Column(JSON, nullable=False, default=list)
+    feeds = Column(JSON, nullable=False, default=lambda: ["hot", "top", "rising", "new"])
+    feed_limit = Column(Integer, nullable=False, default=100)
+    comment_depth = Column(Integer, nullable=False, default=3)
+    dedup_threshold = Column(Float, nullable=False, default=0.85)
+    min_length = Column(Integer, nullable=False, default=40)
+    is_active = Column(Boolean, nullable=False, default=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+

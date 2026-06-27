@@ -82,6 +82,8 @@ const ChartTooltipContent = React.forwardRef<
     React.ComponentProps<"div"> & {
       hideLabel?: boolean;
       nameKey?: string;
+      active?: boolean;
+      payload?: any[];
     }
 >(({ active, payload, className, hideLabel = false, nameKey, ...props }, ref) => {
   const { config } = useChart();
@@ -100,7 +102,7 @@ const ChartTooltipContent = React.forwardRef<
     >
       {label}
       <div className="grid gap-1.5">
-        {payload.map((item, idx) => {
+        {payload.map((item: any, idx: number) => {
           const key = (nameKey ?? item.name ?? item.dataKey) as string;
           const itemConfig = config[key as string];
           return (

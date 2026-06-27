@@ -15,7 +15,7 @@ def build_llm(config: dict):
         raise ValueError("LLM model name must be specified in config.")
 
     if provider == "ollama":
-        from langchain_community.chat_models import ChatOllama
+        from langchain_ollama import ChatOllama
         base_url = config.get("base_url") or settings.OLLAMA_BASE_URL
         return ChatOllama(model=model, base_url=base_url, temperature=temperature)
 
