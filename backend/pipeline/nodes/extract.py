@@ -13,6 +13,12 @@ VALID_CATEGORIES = {
     "scheduling", "integration_gap", "expensive_service"
 }
 
+VALID_EMOTIONS = {
+    "frustrated_with_workaround", "paying_for_bad_tool", "asking_for_missing_feature",
+    "abandoned_by_vendor", "time_wasted", "data_loss_fear", "onboarding_confusion",
+    "integration_broken"
+}
+
 def get_extract_prompt_template() -> str:
     """
     Loads extract.txt prompt template from the backend LLM configuration structure.
@@ -44,6 +50,7 @@ def extract_single_pain_point(llm, content: str, prompt_template: str) -> dict:
             has_pain_point = parsed.get("has_pain_point", False)
             summary = parsed.get("summary", "")
             category = parsed.get("category", "")
+            emotion = parsed.get("emotion", "")
             intensity = parsed.get("intensity", 1)
             quoted_evidence = parsed.get("quoted_evidence", "")
             confidence = parsed.get("confidence", 0)
@@ -51,11 +58,14 @@ def extract_single_pain_point(llm, content: str, prompt_template: str) -> dict:
             # Enforce validation schemas
             if category not in VALID_CATEGORIES:
                 category = "manual_work"
+            if emotion not in VALID_EMOTIONS:
+                emotion = ""
 
             return {
                 "has_pain_point": bool(has_pain_point),
                 "summary": str(summary),
                 "category": str(category),
+                "emotion": str(emotion),
                 "intensity": int(intensity),
                 "quoted_evidence": str(quoted_evidence),
                 "confidence": int(confidence)

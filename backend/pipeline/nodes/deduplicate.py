@@ -31,49 +31,45 @@ def _load_prompt_dir() -> str:
     return os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 
+# Lazy singleton for all-MiniLM-L6-v2
+_minilm_model = None
+
+
+def _get_minilm():
+    global _minilm_model
+    if _minilm_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            print("[deduplicate] Loading all-MiniLM-L6-v2 embeddings model...")
+            _minilm_model = SentenceTransformer("all-MiniLM-L6-v2")
+            print("[deduplicate] all-MiniLM-L6-v2 loaded.")
+        except Exception as e:
+            print(f"[deduplicate] all-MiniLM-L6-v2 unavailable: {e}")
+            _minilm_model = False  # sentinel
+    return _minilm_model if _minilm_model else None
+
+
 def embed_texts(texts: list[str], llm_config: dict) -> Optional[np.ndarray]:
     """
     Embed a list of strings into a (n, d) numpy matrix.
 
-    Provider-agnostic: tries Ollama embeddings first (local), then OpenAI,
-    then a deterministic local hashing fallback so the pipeline still runs in
-    offline/test environments without an embedding API key.
-
-    Returns None if embedding is entirely unavailable.
+    Priority:
+      1. all-MiniLM-L6-v2 via sentence-transformers (CPU, local, best quality)
+      2. Deterministic hashing fallback (no dependencies, stable)
     """
     if not texts:
         return np.zeros((0, 1), dtype="float32")
 
-    provider = (llm_config or {}).get("provider", "").lower()
-    embedding_model = (llm_config or {}).get("embedding_model")
-
-    # 1. Ollama local embeddings
-    if provider == "ollama" or (llm_config or {}).get("embedding_provider") == "ollama":
+    # 1. all-MiniLM-L6-v2 — best semantic similarity for short complaint texts
+    model = _get_minilm()
+    if model is not None:
         try:
-            from langchain_community.embeddings import OllamaEmbeddings
-
-            base_url = (llm_config or {}).get("base_url") or settings.OLLAMA_BASE_URL
-            model = embedding_model or "nomic-embed-text"
-            emb = OllamaEmbeddings(base_url=base_url, model=model)
-            vectors = emb.embed_documents(texts)
+            vectors = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
             return np.asarray(vectors, dtype="float32")
         except Exception as e:
-            print(f"Ollama embeddings unavailable, falling back: {e}")
+            print(f"[deduplicate] MiniLM encoding failed, using hashing fallback: {e}")
 
-    # 2. OpenAI embeddings
-    if provider == "openai" or (llm_config or {}).get("embedding_provider") == "openai":
-        try:
-            from langchain_openai import OpenAIEmbeddings
-
-            api_key = (llm_config or {}).get("api_key") or settings.OPENAI_API_KEY
-            model = embedding_model or "text-embedding-3-small"
-            emb = OpenAIEmbeddings(api_key=api_key, model=model)
-            vectors = emb.embed_documents(texts)
-            return np.asarray(vectors, dtype="float32")
-        except Exception as e:
-            print(f"OpenAI embeddings unavailable, falling back: {e}")
-
-    # 3. Deterministic hashing fallback (no network, stable across runs)
+    # 2. Deterministic hashing fallback (no network, stable across runs)
     return _hashing_embeddings(texts)
 
 

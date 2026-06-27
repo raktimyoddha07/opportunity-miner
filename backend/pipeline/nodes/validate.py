@@ -31,6 +31,7 @@ from backend.db.connection import SessionLocal
 from backend.db.models import Cluster, Opportunity, PainPoint, SourceDocument
 from backend.llm.factory import build_llm
 from backend.pipeline.state import PipelineState
+from backend.services.external_validation import run_external_validation
 
 
 def _prompt_path() -> str:
@@ -146,15 +147,29 @@ def validate_single_cluster(llm, cluster_dict: dict, db: Session, run_id) -> dic
     if not threshold_pass:
         reasoning = (reasoning + f" | Threshold check failed: {fail_reason}.").strip(" |")
 
+    # --- External validation (Upgrade 5) — only run for opportunities that pass ---
+    external_signals: dict = {}
+    if final_valid:
+        try:
+            external_signals = run_external_validation(
+                topic=cluster.name,
+                internal_confidence=llm_confidence,
+            )
+        except Exception as ext_e:
+            print(f"[validate] External validation failed for '{cluster.name}': {ext_e}")
+
+    external_confidence = external_signals.get("external_confidence", llm_confidence)
+
     opportunity = Opportunity(
         cluster_id=cluster.id,
         title=cluster.name,
         summary=cluster.summary,
         category=cluster.category,
         score=cluster.score,
-        confidence=llm_confidence,
+        confidence=external_confidence if final_valid else llm_confidence,
         reasoning=reasoning,
         is_valid=final_valid,
+        external_signals=external_signals,
     )
     db.add(opportunity)
     db.flush()
@@ -163,11 +178,12 @@ def validate_single_cluster(llm, cluster_dict: dict, db: Session, run_id) -> dic
         **cluster_dict,
         "opportunity_id": str(opportunity.id),
         "is_valid": final_valid,
-        "confidence": llm_confidence,
+        "confidence": opportunity.confidence,
         "reasoning": reasoning,
         "mentions": mentions,
         "unique_users": users,
         "unique_threads": threads,
+        "external_signals": external_signals,
     }
 
 

@@ -117,6 +117,7 @@ class Opportunity(Base):
     confidence = Column(Integer, nullable=False, default=0)  # 0-100
     reasoning = Column(Text, nullable=False)
     is_valid = Column(Boolean, nullable=False, default=False)
+    external_signals = Column(JSON, nullable=True, default=dict)  # Google Trends, HN, Product Hunt
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships

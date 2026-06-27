@@ -24,11 +24,11 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: Optional[str] = None
 
     # Pipeline Settings
-    DEFAULT_DEDUPLICATION_THRESHOLD: float = 0.85
-    MIN_MENTIONS_THRESHOLD: int = 10
-    MIN_USERS_THRESHOLD: int = 3
-    MIN_THREADS_THRESHOLD: int = 2
-    MIN_CONFIDENCE_SCORE_THRESHOLD: float = 2.0
+    DEFAULT_DEDUPLICATION_THRESHOLD: float = 0.82
+    MIN_MENTIONS_THRESHOLD: int = 3      # lowered from 10: single-subreddit runs are smaller
+    MIN_USERS_THRESHOLD: int = 2         # lowered from 3
+    MIN_THREADS_THRESHOLD: int = 1       # lowered from 2
+    MIN_CONFIDENCE_SCORE_THRESHOLD: float = 1.5  # lowered from 2.0
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
