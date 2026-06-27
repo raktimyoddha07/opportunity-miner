@@ -125,6 +125,7 @@ export interface Opportunity {
   confidence: number; // 0-100
   reasoning: string;
   is_valid: boolean;
+  external_signals?: Record<string, unknown>;
   created_at: string;
   cluster?: Cluster;
   ideas?: Idea[];

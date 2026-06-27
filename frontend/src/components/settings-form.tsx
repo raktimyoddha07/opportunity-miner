@@ -23,7 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PROVIDER_OPTIONS } from "@/lib/constants";
-import { saveSettings, startRun, usingMocks } from "@/lib/api";
+import { saveSettings, startRun } from "@/lib/api";
 import type { Provider, Settings } from "@/lib/types";
 
 const FEED_OPTIONS = ["hot", "top", "rising", "new"] as const;
@@ -103,9 +103,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       });
       setMessage({
         kind: "ok",
-        text: usingMocks
-          ? "Run queued (mock mode — no backend connected)."
-          : "Run started.",
+        text: "Run started.",
       });
     } catch {
       setMessage({ kind: "err", text: "Failed to start run." });
@@ -116,12 +114,6 @@ export function SettingsForm({ initial }: { initial: Settings }) {
 
   return (
     <div className="space-y-6">
-      {usingMocks ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
-          No <code className="font-mono">NEXT_PUBLIC_API_URL</code> set — changes are local only.
-          Set it to connect the FastAPI backend.
-        </div>
-      ) : null}
 
       {message ? (
         <div

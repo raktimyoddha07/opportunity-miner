@@ -8,8 +8,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileNav } from "@/components/mobile-nav";
-import { usingMocks } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -35,12 +33,6 @@ export default function RootLayout({
                   <span className="text-sm font-medium md:hidden">Opportunity Miner</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  {usingMocks ? (
-                    <Badge variant="warning" className="hidden sm:inline-flex">
-                      <Database className="mr-1 h-3 w-3" />
-                      Mock data
-                    </Badge>
-                  ) : null}
                   <ThemeToggle />
                 </div>
               </header>

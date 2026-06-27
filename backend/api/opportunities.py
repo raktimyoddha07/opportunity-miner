@@ -33,6 +33,7 @@ def serialize_opportunity(opp: Opportunity, include_nested: bool = False) -> dic
         "confidence": opp.confidence,
         "reasoning": opp.reasoning,
         "is_valid": opp.is_valid,
+        "external_signals": getattr(opp, "external_signals", {}) or {},
         "created_at": _iso(opp.created_at),
     }
     if include_nested:

@@ -1,13 +1,8 @@
 /**
  * Typed API client for the Reddit Opportunity Miner backend.
  *
- * Routes match AGENTS.md (FastAPI Routes). When NEXT_PUBLIC_API_URL is unset or
- * a request fails, every function falls back to bundled mock data and logs a
- * warning — the UI never crashes because the backend is unreachable.
- *
- * Per AGENTS.md: the source-of-truth is the database of validated problems;
- * the frontend only reads it. Mutations (start run, save settings) are best
- * effort and surface errors to the caller.
+ * Routes match AGENTS.md (FastAPI Routes).
+ * Direct connections to backend without mock fallback.
  */
 
 import type {
@@ -21,12 +16,8 @@ import type {
   SourceDocument,
   TrendSnapshot,
 } from "./types";
-import * as mock from "./mock-data";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-/** True when no backend URL is configured (mock mode). */
-export const usingMocks = BASE_URL === "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -39,49 +30,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-/**
- * Wrap a real API call; on any error, log and return mock fallback.
- * Used for read endpoints so a down backend never breaks the UI.
- */
-async function withFallback<T>(real: () => Promise<T>, fallback: T, label: string): Promise<T> {
-  if (usingMocks) return fallback;
-  try {
-    return await real();
-  } catch (err) {
-    console.warn(`[api] ${label} failed, using mock data:`, err);
-    return fallback;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Runs
 // ---------------------------------------------------------------------------
 
 export async function getRuns(): Promise<Run[]> {
-  return withFallback(() => request<Run[]>("/runs"), mock.mockRuns, "getRuns");
+  return request<Run[]>("/runs");
 }
 
 export async function getRun(id: string): Promise<Run | null> {
-  const fallback = mock.mockRuns.find((r) => r.id === id) ?? null;
-  return withFallback(() => request<Run>(`/runs/${id}`), fallback, "getRun");
+  return request<Run>(`/runs/${id}`);
 }
 
 export async function startRun(payload: {
   subreddits: string[];
   llm_config?: Record<string, unknown>;
 }): Promise<Run | null> {
-  if (usingMocks) {
-    return {
-      id: `run-${Date.now()}`,
-      status: "running",
-      subreddits: payload.subreddits,
-      llm_config: payload.llm_config ?? {},
-      error: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-  }
-  // Mutations surface errors to the caller (no silent mock fallback here).
   const res = await fetch(`${BASE_URL}/runs/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -93,20 +57,11 @@ export async function startRun(payload: {
 }
 
 export async function deleteRun(id: string): Promise<void> {
-  if (usingMocks) return;
   const res = await fetch(`${BASE_URL}/runs/${id}`, { method: "DELETE", cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to delete run: ${res.status}`);
 }
 
 export async function stopRun(id: string): Promise<Run | null> {
-  if (usingMocks) {
-    const run = mock.mockRuns.find((r) => r.id === id);
-    if (run) {
-      run.status = "failed";
-      run.error = "Stopped by user";
-    }
-    return run ?? null;
-  }
   const res = await fetch(`${BASE_URL}/runs/${id}/stop`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -121,16 +76,11 @@ export async function stopRun(id: string): Promise<Run | null> {
 // ---------------------------------------------------------------------------
 
 export async function getOpportunities(): Promise<Opportunity[]> {
-  return withFallback(
-    () => request<Opportunity[]>("/opportunities"),
-    mock.mockOpportunities,
-    "getOpportunities",
-  );
+  return request<Opportunity[]>("/opportunities");
 }
 
 export async function getOpportunity(id: string): Promise<Opportunity | null> {
-  const fallback = mock.mockOpportunities.find((o) => o.id === id) ?? null;
-  return withFallback(() => request<Opportunity>(`/opportunities/${id}`), fallback, "getOpportunity");
+  return request<Opportunity>(`/opportunities/${id}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -138,12 +88,11 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
 // ---------------------------------------------------------------------------
 
 export async function getClusters(): Promise<Cluster[]> {
-  return withFallback(() => request<Cluster[]>("/clusters"), mock.mockClusters, "getClusters");
+  return request<Cluster[]>("/clusters");
 }
 
 export async function getCluster(id: string): Promise<Cluster | null> {
-  const fallback = mock.mockClusters.find((c) => c.id === id) ?? null;
-  return withFallback(() => request<Cluster>(`/clusters/${id}`), fallback, "getCluster");
+  return request<Cluster>(`/clusters/${id}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -152,24 +101,13 @@ export async function getCluster(id: string): Promise<Cluster | null> {
 
 export async function getEvidence(clusterId?: string): Promise<PainPoint[]> {
   if (clusterId) {
-    const fallback = mock.mockPainPoints.filter(
-      (p) => mock.mockClusters.find((c) => c.id === clusterId)?.duplicate_ids.includes(p.id),
-    );
-    return withFallback(
-      () => request<PainPoint[]>(`/evidence?cluster_id=${clusterId}`),
-      fallback,
-      "getEvidence(cluster)",
-    );
+    return request<PainPoint[]>(`/evidence?cluster_id=${clusterId}`);
   }
-  return withFallback(() => request<PainPoint[]>("/evidence"), mock.mockPainPoints, "getEvidence");
+  return request<PainPoint[]>("/evidence");
 }
 
 export async function getSourceDocuments(): Promise<SourceDocument[]> {
-  return withFallback(
-    () => request<SourceDocument[]>("/evidence/sources"),
-    mock.mockSourceDocuments,
-    "getSourceDocuments",
-  );
+  return request<SourceDocument[]>("/evidence/sources");
 }
 
 // ---------------------------------------------------------------------------
@@ -177,18 +115,14 @@ export async function getSourceDocuments(): Promise<SourceDocument[]> {
 // ---------------------------------------------------------------------------
 
 export async function getIdeas(): Promise<Idea[]> {
-  return withFallback(() => request<Idea[]>("/ideas"), mock.mockIdeas, "getIdeas");
+  return request<Idea[]>("/ideas");
 }
 
 export async function getIdea(id: string): Promise<Idea | null> {
-  const fallback = mock.mockIdeas.find((i) => i.id === id) ?? null;
-  return withFallback(() => request<Idea>(`/ideas/${id}`), fallback, "getIdea");
+  return request<Idea>(`/ideas/${id}`);
 }
 
 export async function generateIdeas(opportunityId: string): Promise<Idea[] | null> {
-  if (usingMocks) {
-    return mock.mockIdeas.filter((i) => i.opportunity_id === opportunityId);
-  }
   const res = await fetch(`${BASE_URL}/ideas/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -204,11 +138,7 @@ export async function generateIdeas(opportunityId: string): Promise<Idea[] | nul
 // ---------------------------------------------------------------------------
 
 export async function getTrendSnapshots(): Promise<TrendSnapshot[]> {
-  return withFallback(
-    () => request<TrendSnapshot[]>("/trends"),
-    mock.mockTrendSnapshots,
-    "getTrendSnapshots",
-  );
+  return request<TrendSnapshot[]>("/trends");
 }
 
 // ---------------------------------------------------------------------------
@@ -216,11 +146,10 @@ export async function getTrendSnapshots(): Promise<TrendSnapshot[]> {
 // ---------------------------------------------------------------------------
 
 export async function getSettings(): Promise<Settings> {
-  return withFallback(() => request<Settings>("/settings"), mock.mockSettings, "getSettings");
+  return request<Settings>("/settings");
 }
 
 export async function saveSettings(settings: Settings): Promise<Settings> {
-  if (usingMocks) return settings;
   const res = await fetch(`${BASE_URL}/settings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -240,10 +169,5 @@ export function exportUrl(format: "csv" | "json" | "markdown"): string {
 }
 
 export async function getJsonExport(): Promise<JsonExport> {
-  return withFallback(() => request<JsonExport>("/export/json"), {
-    opportunities: mock.mockOpportunities,
-    clusters: mock.mockClusters,
-    evidence: mock.mockPainPoints,
-    ideas: mock.mockIdeas,
-  }, "getJsonExport");
+  return request<JsonExport>("/export/json");
 }
