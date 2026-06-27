@@ -13,6 +13,8 @@ __pycache__/
 AGENTS.md
 task.md
 
+/uploads
+
 # Cache/Logs
 .pytest_cache/
 *.log
