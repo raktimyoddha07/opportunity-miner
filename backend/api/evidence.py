@@ -70,25 +70,10 @@ def list_source_documents(
     return [serialize_source_document(d) for d in q.all()]
 
 
-@router.get("")
-@router.get("/{cluster_id}")
-def list_evidence(
-    db: Session = Depends(get_db),
-    cluster_id: str | None = Query(None),
-    run_id: str | None = Query(None),
-):
-    """
-    Pain points with their joined source documents.
-    Optionally scoped to a single cluster (via query or path param).
-    """
-    # Path-param form: /evidence/{cluster_id} — only set when not already via query.
-    target_cluster = cluster_id
-
-    # Resolve the cluster's member pain-point ids first (via the association
-    # relationship), then filter — avoids an awkward correlated join.
+def _get_evidence(db: Session, cluster_id: str | None, run_id: str | None) -> list[dict]:
     pain_point_ids: list | None = None
-    if target_cluster:
-        cluster = db.query(Cluster).filter(Cluster.id == target_cluster).first()
+    if cluster_id:
+        cluster = db.query(Cluster).filter(Cluster.id == cluster_id).first()
         if not cluster:
             raise HTTPException(status_code=404, detail="Cluster not found")
         pain_point_ids = [pp.id for pp in (cluster.pain_points or [])]
@@ -104,3 +89,29 @@ def list_evidence(
 
     q = q.order_by(PainPoint.confidence.desc().nullslast(), PainPoint.created_at.desc())
     return [serialize_pain_point(pp, doc) for pp, doc in q.all()]
+
+
+@router.get("")
+def list_evidence(
+    db: Session = Depends(get_db),
+    cluster_id: str | None = Query(None),
+    run_id: str | None = Query(None),
+):
+    """
+    Pain points with their joined source documents.
+    Optionally scoped to a single cluster (via query param).
+    """
+    return _get_evidence(db, cluster_id, run_id)
+
+
+@router.get("/{cluster_id}")
+def get_cluster_evidence(
+    cluster_id: str,
+    db: Session = Depends(get_db),
+    run_id: str | None = Query(None),
+):
+    """
+    Pain points with their joined source documents.
+    Optionally scoped to a single cluster (via path param).
+    """
+    return _get_evidence(db, cluster_id, run_id)
