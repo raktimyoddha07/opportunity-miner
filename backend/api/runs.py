@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.db.connection import SessionLocal, get_db
-from backend.db.models import Run
+from backend.db.models import Run, SourceDocument, PainPoint, Cluster, Opportunity, Idea, TrendSnapshot, cluster_evidence
 from backend.dependencies import resolve_llm_config
 from backend.pipeline.graph import app as pipeline_app
 from backend.services.trend_detection import snapshot_run_trends
@@ -170,7 +170,45 @@ def delete_run(run_id: str, db: Session = Depends(get_db)):
     run = db.query(Run).filter(Run.id == run_id).first()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-    db.delete(run)  # cascades to all child tables
+    
+    # Collect IDs for cascade cleanup
+    cluster_ids = [c[0] for c in db.query(Cluster.id).filter(Cluster.run_id == run_id).all()]
+    opp_ids = []
+    if cluster_ids:
+        opp_ids = [o[0] for o in db.query(Opportunity.id).filter(Opportunity.cluster_id.in_(cluster_ids)).all()]
+    pp_ids = [p[0] for p in db.query(PainPoint.id).filter(PainPoint.run_id == run_id).all()]
+
+    # 1. Delete Ideas generated from this run's opportunities
+    if opp_ids:
+        db.query(Idea).filter(Idea.opportunity_id.in_(opp_ids)).delete(synchronize_session=False)
+
+    # 2. Delete Opportunities generated from this run's clusters
+    if cluster_ids:
+        db.query(Opportunity).filter(Opportunity.cluster_id.in_(cluster_ids)).delete(synchronize_session=False)
+
+    # 3. Delete cluster_evidence associations
+    if cluster_ids or pp_ids:
+        from sqlalchemy import delete
+        stmt = delete(cluster_evidence).where(
+            (cluster_evidence.c.cluster_id.in_(cluster_ids)) | 
+            (cluster_evidence.c.pain_point_id.in_(pp_ids))
+        )
+        db.execute(stmt)
+
+    # 4. Delete Clusters
+    db.query(Cluster).filter(Cluster.run_id == run_id).delete(synchronize_session=False)
+
+    # 5. Delete PainPoints
+    db.query(PainPoint).filter(PainPoint.run_id == run_id).delete(synchronize_session=False)
+
+    # 6. Delete SourceDocuments
+    db.query(SourceDocument).filter(SourceDocument.run_id == run_id).delete(synchronize_session=False)
+
+    # 7. Delete TrendSnapshots
+    db.query(TrendSnapshot).filter(TrendSnapshot.run_id == run_id).delete(synchronize_session=False)
+
+    # 8. Delete the Run itself
+    db.delete(run)
     db.commit()
     return {"deleted": run_id}
 

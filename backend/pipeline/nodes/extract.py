@@ -46,14 +46,24 @@ def extract_single_pain_point(llm, content: str, prompt_template: str) -> dict:
             response_content = response.content if hasattr(response, 'content') else str(response)
             parsed = parse_json_from_llm(response_content)
             
-            # Extract attributes
+            # Extract attributes safely handling None or missing keys
             has_pain_point = parsed.get("has_pain_point", False)
-            summary = parsed.get("summary", "")
-            category = parsed.get("category", "")
-            emotion = parsed.get("emotion", "")
-            intensity = parsed.get("intensity", 1)
-            quoted_evidence = parsed.get("quoted_evidence", "")
-            confidence = parsed.get("confidence", 0)
+            summary = parsed.get("summary", "") or ""
+            category = parsed.get("category", "") or ""
+            emotion = parsed.get("emotion", "") or ""
+            quoted_evidence = parsed.get("quoted_evidence", "") or ""
+
+            raw_intensity = parsed.get("intensity")
+            try:
+                intensity = int(raw_intensity) if raw_intensity is not None else 1
+            except (ValueError, TypeError):
+                intensity = 1
+
+            raw_confidence = parsed.get("confidence")
+            try:
+                confidence = int(raw_confidence) if raw_confidence is not None else 0
+            except (ValueError, TypeError):
+                confidence = 0
 
             # Enforce validation schemas
             if category not in VALID_CATEGORIES:
@@ -66,9 +76,9 @@ def extract_single_pain_point(llm, content: str, prompt_template: str) -> dict:
                 "summary": str(summary),
                 "category": str(category),
                 "emotion": str(emotion),
-                "intensity": int(intensity),
+                "intensity": intensity,
                 "quoted_evidence": str(quoted_evidence),
-                "confidence": int(confidence)
+                "confidence": confidence
             }
         except Exception as e:
             print(f"Extraction attempt {attempt} failed: {e}")

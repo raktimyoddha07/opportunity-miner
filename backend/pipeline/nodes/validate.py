@@ -150,8 +150,12 @@ def validate_single_cluster(llm, cluster_dict: dict, db: Session, run_id) -> dic
         text = response.content if hasattr(response, "content") else str(response)
         parsed = parse_json_from_llm(text)
         is_valid = bool(parsed.get("is_valid", False))
-        llm_confidence = int(parsed.get("confidence", avg_conf_pct))
-        reasoning = str(parsed.get("reasoning", ""))
+        raw_conf = parsed.get("confidence")
+        try:
+            llm_confidence = int(raw_conf) if raw_conf is not None else int(avg_conf_pct)
+        except (ValueError, TypeError):
+            llm_confidence = int(avg_conf_pct)
+        reasoning = str(parsed.get("reasoning", "") or "")
     except Exception as e:
         reasoning = f"LLM validation unavailable ({e}); relied on thresholds only."
 
