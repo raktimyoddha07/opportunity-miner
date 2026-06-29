@@ -153,18 +153,46 @@ def score_node(state: PipelineState) -> dict:
     """
     clusters = state.get("clusters", [])
     run_id = state.get("run_id")
+    stats = state.get("pipeline_stats") or {}
+    pain_points = state.get("pain_points", [])
+
+    # Minimum Corpus Guard
+    if len(pain_points) < 10:
+        collect_cnt = len(state.get("source_documents", []))
+        clean_cnt = len(state.get("cleaned_documents", []))
+        extract_cnt = len(pain_points)
+        
+        collapse_reason = "collect"
+        if collect_cnt >= 10:
+            collapse_reason = "clean"
+            if clean_cnt >= 10:
+                collapse_reason = "extract"
+                
+        error_msg = (
+            f"Insufficient corpus. Run collect on more subreddits before scoring. "
+            f"Stage causing collapse: {collapse_reason} (collect={collect_cnt}, clean={clean_cnt}, extract={extract_cnt})"
+        )
+        print(error_msg)
+        stats["score_scored"] = 0
+        print("[SCORE]        → 0 scored")
+        return {"scored_clusters": [], "error": error_msg, "pipeline_stats": stats}
 
     if not clusters:
-        return {"scored_clusters": []}
+        stats["score_scored"] = 0
+        print("[SCORE]        → 0 scored")
+        return {"scored_clusters": [], "pipeline_stats": stats}
 
     db = SessionLocal()
     try:
         scored = score_clusters(clusters, run_id, db)
-        return {"scored_clusters": scored}
+        stats["score_scored"] = len(scored)
+        print(f"[SCORE]        → {len(scored)} scored")
+        return {"scored_clusters": scored, "pipeline_stats": stats}
     except Exception as e:
         db.rollback()
         error_msg = f"Score node error: {e}"
         print(error_msg)
-        return {"scored_clusters": clusters, "error": error_msg}
+        stats["score_scored"] = len(clusters)
+        return {"scored_clusters": clusters, "error": error_msg, "pipeline_stats": stats}
     finally:
         db.close()

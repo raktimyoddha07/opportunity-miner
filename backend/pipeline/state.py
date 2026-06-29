@@ -37,3 +37,4 @@ class PipelineState(TypedDict):
     # --- Run lifecycle ---
     status: str                            # "running" | "completed" | "failed"
     error: str                             # last non-fatal error message, if any
+    pipeline_stats: dict                   # per-stage funnel statistics log dict

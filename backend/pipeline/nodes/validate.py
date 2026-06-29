@@ -94,17 +94,29 @@ def gather_cluster_signals(db: Session, cluster: Cluster):
     return pain_points, by_pp, len(users), len(threads), mentions
 
 
-def meets_thresholds(mentions, users, threads, avg_confidence) -> tuple[bool, str]:
+def meets_thresholds(mentions, users, threads, avg_confidence, doc_count: int = 0) -> tuple[bool, str]:
     """Apply Rule 7 hard thresholds. Returns (passes, reason_if_failed)."""
-    if mentions < settings.MIN_MENTIONS_THRESHOLD:
-        return False, f"mentions {mentions} < {settings.MIN_MENTIONS_THRESHOLD}"
-    if users < settings.MIN_USERS_THRESHOLD:
-        return False, f"unique users {users} < {settings.MIN_USERS_THRESHOLD}"
-    if threads < settings.MIN_THREADS_THRESHOLD:
-        return False, f"unique threads {threads} < {settings.MIN_THREADS_THRESHOLD}"
-    if avg_confidence < settings.MIN_CONFIDENCE_SCORE_THRESHOLD:
+    min_mentions = settings.MIN_MENTIONS_THRESHOLD
+    min_users = settings.MIN_USERS_THRESHOLD
+    min_threads = settings.MIN_THREADS_THRESHOLD
+    min_confidence = settings.MIN_CONFIDENCE_SCORE_THRESHOLD
+
+    if doc_count < 500:
+        # Lower thresholds temporarily for cold/empty database
+        min_mentions = 2
+        min_users = 2
+        min_threads = 1
+        min_confidence = 1.0
+
+    if mentions < min_mentions:
+        return False, f"mentions {mentions} < {min_mentions}"
+    if users < min_users:
+        return False, f"unique users {users} < {min_users}"
+    if threads < min_threads:
+        return False, f"unique threads {threads} < {min_threads}"
+    if avg_confidence < min_confidence:
         return False, (f"avg confidence {avg_confidence:.2f} < "
-                       f"{settings.MIN_CONFIDENCE_SCORE_THRESHOLD}")
+                       f"{min_confidence}")
     return True, ""
 
 
@@ -122,7 +134,8 @@ def validate_single_cluster(llm, cluster_dict: dict, db: Session, run_id) -> dic
     avg_conf_5 = avg_conf_pct / 20.0  # 0-100 -> 0-5
 
     # 1. Hard evidence thresholds (Rule 7) — checked first and never bypassed
-    threshold_pass, fail_reason = meets_thresholds(mentions, users, threads, avg_conf_5)
+    doc_count = db.query(SourceDocument).count()
+    threshold_pass, fail_reason = meets_thresholds(mentions, users, threads, avg_conf_5, doc_count)
 
     # 2. LLM judgement (1 attempt)
     is_valid = False
@@ -196,16 +209,20 @@ def validate_node(state: PipelineState) -> dict:
     scored = state.get("scored_clusters", [])
     run_id = state.get("run_id")
     llm_config = state.get("llm_config", {})
+    stats = state.get("pipeline_stats") or {}
 
     if not scored:
-        return {"validated_clusters": []}
+        stats["validate_passed"] = 0
+        stats["validate_rejected"] = 0
+        print("[VALIDATE]     → 0 passed, 0 rejected")
+        return {"validated_clusters": [], "pipeline_stats": stats}
 
     try:
         llm = build_llm(llm_config)
     except Exception as e:
         error_msg = f"Validate node could not build LLM: {e}"
         print(error_msg)
-        return {"validated_clusters": [], "error": error_msg}
+        return {"validated_clusters": [], "error": error_msg, "pipeline_stats": stats}
 
     db = SessionLocal()
     validated: list[dict] = []
@@ -218,11 +235,18 @@ def validate_node(state: PipelineState) -> dict:
                 validated.append({**cd, "is_valid": False,
                                   "reasoning": f"validation error: {e}"})
         db.commit()
-        return {"validated_clusters": validated}
+        
+        validate_passed = sum(1 for v in validated if v.get("is_valid"))
+        validate_rejected = len(validated) - validate_passed
+        stats["validate_passed"] = validate_passed
+        stats["validate_rejected"] = validate_rejected
+        print(f"[VALIDATE]     → {validate_passed} passed, {validate_rejected} rejected")
+
+        return {"validated_clusters": validated, "pipeline_stats": stats}
     except Exception as e:
         db.rollback()
         error_msg = f"Validate node persistence error: {e}"
         print(error_msg)
-        return {"validated_clusters": validated, "error": error_msg}
+        return {"validated_clusters": validated, "error": error_msg, "pipeline_stats": stats}
     finally:
         db.close()

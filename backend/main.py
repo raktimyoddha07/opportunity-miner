@@ -15,8 +15,10 @@ from backend.api import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Auto-create tables on startup (lifespan pattern for FastAPI)
-    Base.metadata.create_all(bind=engine)
+    # Run the synchronous create_all in a thread so it doesn't block the
+    # uvicorn event loop and cause all incoming requests to hang.
+    import asyncio
+    await asyncio.to_thread(Base.metadata.create_all, engine)
     yield
 
 app = FastAPI(

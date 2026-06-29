@@ -113,6 +113,20 @@ def generate_ideas_for_opportunity(llm, db: Session, cluster: Cluster,
     return serialized
 
 
+def _print_funnel_summary(stats: dict) -> None:
+    """Print the full per-stage funnel summary to stdout."""
+    print("\n── Pipeline Funnel Summary ─────────────────────────")
+    print(f"[COLLECT]      → {stats.get('collect_documents', '?')} documents")
+    print(f"[CLEAN]        → {stats.get('clean_kept', '?')} kept, {stats.get('clean_discarded', '?')} discarded")
+    print(f"[ENRICH]       → {stats.get('enrich_passed', '?')} passed urgency filter, {stats.get('enrich_skipped', '?')} skipped")
+    print(f"[EXTRACT]      → {stats.get('extract_true', '?')} has_pain_point=true, {stats.get('extract_false', '?')} false")
+    print(f"[DEDUPLICATE]  → {stats.get('deduplicate_unique', '?')} unique clusters")
+    print(f"[SCORE]        → {stats.get('score_scored', '?')} scored")
+    print(f"[VALIDATE]     → {stats.get('validate_passed', '?')} passed, {stats.get('validate_rejected', '?')} rejected")
+    print(f"[GENERATE]     → {stats.get('generate_ideas', '?')} ideas generated")
+    print("────────────────────────────────────────────────────\n")
+
+
 def generate_node(state: PipelineState) -> dict:
     """
     Generate opportunities + ideas from validated clusters.
@@ -122,16 +136,21 @@ def generate_node(state: PipelineState) -> dict:
     validated = state.get("validated_clusters", [])
     run_id = state.get("run_id")
     llm_config = state.get("llm_config", {})
+    stats = state.get("pipeline_stats") or {}
 
     if not validated:
-        return {"opportunities": [], "ideas": []}
+        stats["generate_ideas"] = 0
+        _print_funnel_summary(stats)
+        return {"opportunities": [], "ideas": [], "pipeline_stats": stats}
 
     try:
         llm = build_llm(llm_config)
     except Exception as e:
         error_msg = f"Generate node could not build LLM: {e}"
         print(error_msg)
-        return {"opportunities": [], "ideas": [], "error": error_msg}
+        stats["generate_ideas"] = 0
+        _print_funnel_summary(stats)
+        return {"opportunities": [], "ideas": [], "error": error_msg, "pipeline_stats": stats}
 
     db = SessionLocal()
     opportunities_out: list[dict] = []
@@ -178,11 +197,16 @@ def generate_node(state: PipelineState) -> dict:
                 print(f"Idea generation failed for opportunity {opportunity.id}: {e}")
 
         db.commit()
-        return {"opportunities": opportunities_out, "ideas": ideas_out}
+        stats["generate_ideas"] = len(ideas_out)
+        print(f"[GENERATE]     → {len(ideas_out)} ideas generated")
+        _print_funnel_summary(stats)
+        return {"opportunities": opportunities_out, "ideas": ideas_out, "pipeline_stats": stats}
     except Exception as e:
         db.rollback()
         error_msg = f"Generate node persistence error: {e}"
         print(error_msg)
-        return {"opportunities": opportunities_out, "ideas": ideas_out, "error": error_msg}
+        stats["generate_ideas"] = len(ideas_out)
+        _print_funnel_summary(stats)
+        return {"opportunities": opportunities_out, "ideas": ideas_out, "error": error_msg, "pipeline_stats": stats}
     finally:
         db.close()

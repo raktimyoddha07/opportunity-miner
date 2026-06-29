@@ -12,7 +12,7 @@ import { MobileNav } from "@/components/mobile-nav";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Reddit Opportunity Miner",
+  title: "Opportunity Miner",
   description:
     "Collect Reddit discussions, extract recurring pain points, cluster them into validated opportunities, and generate business ideas from strong signals.",
 };

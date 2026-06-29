@@ -84,9 +84,13 @@ def extract_node(state: PipelineState) -> dict:
     run_id = state.get("run_id")
     cleaned_docs = state.get("cleaned_documents", [])
     llm_config = state.get("llm_config", {})
+    stats = state.get("pipeline_stats") or {}
 
     if not cleaned_docs:
-        return {"pain_points": []}
+        stats["extract_true"] = 0
+        stats["extract_false"] = 0
+        print("[EXTRACT]      → 0 has_pain_point=true, 0 false")
+        return {"pain_points": [], "pipeline_stats": stats}
 
     try:
         llm = build_llm(llm_config)
@@ -94,7 +98,7 @@ def extract_node(state: PipelineState) -> dict:
     except Exception as e:
         error_msg = f"Failed to initialize LLM factory or prompt layout: {str(e)}"
         print(error_msg)
-        return {"pain_points": [], "error": error_msg}
+        return {"pain_points": [], "error": error_msg, "pipeline_stats": stats}
 
     pain_points = []
     db = SessionLocal()
@@ -135,14 +139,54 @@ def extract_node(state: PipelineState) -> dict:
             except Exception as e:
                 # Catch error, log it, and continue (Rule 5)
                 print(f"Error extracting pain point for doc {doc_id}: {e}")
-                # We do not abort the node run; we proceed with other documents.
+                
+                # Fallback: Check if urgency_score >= 3
+                metadata = doc.get("metadata") or {}
+                urgency_score = metadata.get("urgency_score", 0)
+                if urgency_score >= 3:
+                    print(f"Applying fallback confidence scoring for doc {doc_id} because urgency_score={urgency_score}")
+                    try:
+                        db_pain_point = PainPoint(
+                            run_id=run_id,
+                            source_document_id=doc_id,
+                            has_pain_point=True,
+                            summary=doc.get("title") or doc.get("content")[:100],
+                            category="manual_work",
+                            intensity=3,
+                            quoted_evidence="Fallback due to LLM error. Urgency score: " + str(urgency_score),
+                            confidence=30
+                        )
+                        db.add(db_pain_point)
+                        db.flush()
+
+                        serialized_pp = {
+                            "id": str(db_pain_point.id),
+                            "source_document_id": doc_id,
+                            "has_pain_point": db_pain_point.has_pain_point,
+                            "summary": db_pain_point.summary,
+                            "category": db_pain_point.category,
+                            "intensity": db_pain_point.intensity,
+                            "quoted_evidence": db_pain_point.quoted_evidence,
+                            "confidence": db_pain_point.confidence,
+                            "source": "urgency_fallback"
+                        }
+                        pain_points.append(serialized_pp)
+                    except Exception as fallback_e:
+                        print(f"Fallback failed for doc {doc_id}: {fallback_e}")
 
         db.commit()
-        return {"pain_points": pain_points}
+        
+        extract_true = sum(1 for p in pain_points if p.get("has_pain_point"))
+        extract_false = len(pain_points) - extract_true
+        stats["extract_true"] = extract_true
+        stats["extract_false"] = extract_false
+        print(f"[EXTRACT]      → {extract_true} has_pain_point=true, {extract_false} false")
+
+        return {"pain_points": pain_points, "pipeline_stats": stats}
     except Exception as e:
         db.rollback()
         error_msg = f"Database commit error in extract node: {str(e)}"
         print(error_msg)
-        return {"pain_points": pain_points, "error": error_msg}
+        return {"pain_points": pain_points, "error": error_msg, "pipeline_stats": stats}
     finally:
         db.close()

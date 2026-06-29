@@ -17,7 +17,10 @@ import type {
   TrendSnapshot,
 } from "./types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+// API_URL is the server-side-only base URL (not exposed to the browser).
+// NEXT_PUBLIC_API_URL is the fallback used for client-side fetches.
+const BASE_URL =
+  process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -25,6 +28,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     // Never cache list/detail reads — the database grows continuously.
     cache: "no-store",
+    // Fail fast — don't wait 300 s for a backend that's down.
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} on ${path}`);
   return (await res.json()) as T;

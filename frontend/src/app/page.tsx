@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Boxes, ListChecks, TrendingUp, Trophy } from "lucide-react";
+import { AlertTriangle, Boxes, ListChecks, TrendingUp, Trophy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +22,23 @@ import { DashboardCharts } from "@/components/dashboard-charts";
 import { ExportDropdown } from "@/components/export-dropdown";
 
 export default async function DashboardPage() {
-  const [opportunities, clusters, runs, trends] = await Promise.all([
-    getOpportunities(),
-    getClusters(),
-    getRuns(),
-    getTrendSnapshots(),
-  ]);
+  let opportunities: Awaited<ReturnType<typeof getOpportunities>> = [];
+  let clusters: Awaited<ReturnType<typeof getClusters>> = [];
+  let runs: Awaited<ReturnType<typeof getRuns>> = [];
+  let trends: Awaited<ReturnType<typeof getTrendSnapshots>> = [];
+  let backendError: string | null = null;
+
+  try {
+    [opportunities, clusters, runs, trends] = await Promise.all([
+      getOpportunities(),
+      getClusters(),
+      getRuns(),
+      getTrendSnapshots(),
+    ]);
+  } catch (err) {
+    backendError =
+      err instanceof Error ? err.message : "Could not reach the backend API.";
+  }
 
   const valid = opportunities.filter((o) => o.is_valid);
   const avgScore = valid.length
@@ -75,6 +86,16 @@ export default async function DashboardPage() {
           </div>
         }
       />
+
+      {backendError && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Backend unreachable</p>
+            <p className="mt-0.5 text-xs opacity-80">{backendError}</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

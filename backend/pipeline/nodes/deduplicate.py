@@ -159,6 +159,19 @@ def deduplicate_pain_points(
     return masters
 
 
+from backend.db.connection import SessionLocal
+from backend.db.models import PainPoint, Cluster
+
+def _tokenize(text: str) -> set[str]:
+    return {tok for tok in (text or "").lower().split() if len(tok) > 2}
+
+def _jaccard(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    inter = len(a & b)
+    union = len(a | b)
+    return inter / union if union else 0.0
+
 def deduplicate_node(state: PipelineState) -> dict:
     """
     Greedy embedding-similarity deduplication of extracted pain points.
@@ -167,22 +180,129 @@ def deduplicate_node(state: PipelineState) -> dict:
     """
     pain_points = state.get("pain_points", [])
     llm_config = state.get("llm_config", {})
+    run_id = state.get("run_id")
+    stats = state.get("pipeline_stats") or {}
 
     if not pain_points:
-        return {"deduplicated_pain_points": []}
+        stats["deduplicate_unique"] = 0
+        print("[DEDUPLICATE]  → 0 unique clusters")
+        return {"deduplicated_pain_points": [], "pipeline_stats": stats}
 
+    # Separate current candidates
+    candidates = [pp for pp in pain_points if pp.get("has_pain_point")]
+    if not candidates:
+        stats["deduplicate_unique"] = 0
+        print("[DEDUPLICATE]  → 0 unique clusters")
+        return {"deduplicated_pain_points": [], "pipeline_stats": stats}
+
+    db = SessionLocal()
     try:
+        # Load historical pain points
+        historical_rows = db.query(PainPoint).filter(
+            PainPoint.has_pain_point == True,
+            PainPoint.run_id != run_id
+        ).all()
+        
+        # Build embedding lists
+        historical_pps = []
+        for p in historical_rows:
+            historical_pps.append({
+                "id": str(p.id),
+                "summary": p.summary or p.quoted_evidence or "",
+                "orm_obj": p
+            })
+
         threshold = settings.DEFAULT_DEDUPLICATION_THRESHOLD
-        deduped = deduplicate_pain_points(pain_points, threshold, llm_config)
-        original_count = len([pp for pp in pain_points if pp.get("has_pain_point")])
-        print(f"Dedup: {original_count} pain points -> {len(deduped)} unique")
-        return {"deduplicated_pain_points": deduped}
+        matched_count = 0
+        
+        # We need to embed everything for comparison
+        all_summaries = [c.get("summary") or c.get("quoted_evidence") or "" for c in candidates]
+        hist_summaries = [hp["summary"] for hp in historical_pps]
+        
+        sim_matrix = None
+        # If we have historical data, embed and compare
+        if hist_summaries and all_summaries:
+            cand_vectors = embed_texts(all_summaries, llm_config)
+            hist_vectors = embed_texts(hist_summaries, llm_config)
+            
+            if cand_vectors is not None and hist_vectors is not None:
+                # Pairwise cosine similarity matrix of candidates (rows) and historical (columns)
+                cand_norms = np.linalg.norm(cand_vectors, axis=1, keepdims=True)
+                cand_norms[cand_norms == 0] = 1.0
+                cand_normed = cand_vectors / cand_norms
+                
+                hist_norms = np.linalg.norm(hist_vectors, axis=1, keepdims=True)
+                hist_norms[hist_norms == 0] = 1.0
+                hist_normed = hist_vectors / hist_norms
+                
+                sim_matrix = cand_normed @ hist_normed.T
+                
+                # Check for matches
+                non_duplicate_candidates = []
+                for idx, cand in enumerate(candidates):
+                    best_match_idx = int(np.argmax(sim_matrix[idx]))
+                    best_score = float(sim_matrix[idx, best_match_idx])
+                    
+                    if best_score >= threshold:
+                        # Match found! Link to historical clusters
+                        hist_match = historical_pps[best_match_idx]["orm_obj"]
+                        curr_orm = db.query(PainPoint).filter(PainPoint.id == cand["id"]).first()
+                        if curr_orm and hist_match.clusters:
+                            for cluster in hist_match.clusters:
+                                if curr_orm not in cluster.pain_points:
+                                    cluster.pain_points.append(curr_orm)
+                                    cluster.duplicate_count += 1
+                            db.flush()
+                        matched_count += 1
+                    else:
+                        non_duplicate_candidates.append(cand)
+                candidates = non_duplicate_candidates
+
+        # Fallback Jaccard check if candidates and historical weren't compared yet (e.g. embeddings failed)
+        if hist_summaries and candidates and sim_matrix is None:
+            non_duplicate_candidates = []
+            for cand in candidates:
+                cand_tokens = _tokenize(cand.get("summary") or cand.get("quoted_evidence") or "")
+                matched = False
+                for hp in historical_pps:
+                    hp_tokens = _tokenize(hp["summary"])
+                    if _jaccard(cand_tokens, hp_tokens) >= 0.34:
+                        # Link to historical clusters
+                        hist_match = hp["orm_obj"]
+                        curr_orm = db.query(PainPoint).filter(PainPoint.id == cand["id"]).first()
+                        if curr_orm and hist_match.clusters:
+                            for cluster in hist_match.clusters:
+                                if curr_orm not in cluster.pain_points:
+                                    cluster.pain_points.append(curr_orm)
+                                    cluster.duplicate_count += 1
+                            db.flush()
+                        matched = True
+                        matched_count += 1
+                        break
+                if not matched:
+                    non_duplicate_candidates.append(cand)
+            candidates = non_duplicate_candidates
+
+        # Now, deduplicate remaining candidates amongst themselves
+        deduped = deduplicate_pain_points(candidates, threshold, llm_config)
+        
+        # Commit the database changes
+        db.commit()
+
+        stats["deduplicate_unique"] = len(deduped)
+        print(f"[DEDUPLICATE]  → {len(deduped)} unique clusters (merged {matched_count} into historical clusters)")
+        return {"deduplicated_pain_points": deduped, "pipeline_stats": stats}
+        
     except Exception as e:
+        db.rollback()
         error_msg = f"Deduplicate node error: {e}"
         print(error_msg)
-        # Never abort: pass through the raw pain points unchanged
+        # Fall back
         passthrough = [pp for pp in pain_points if pp.get("has_pain_point")]
         for pp in passthrough:
             pp.setdefault("duplicate_count", 1)
             pp.setdefault("duplicate_ids", [pp.get("id")])
-        return {"deduplicated_pain_points": passthrough, "error": error_msg}
+        stats["deduplicate_unique"] = len(passthrough)
+        return {"deduplicated_pain_points": passthrough, "error": error_msg, "pipeline_stats": stats}
+    finally:
+        db.close()

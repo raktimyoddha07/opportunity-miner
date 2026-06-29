@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
     confidence INTEGER NOT NULL DEFAULT 0,
     reasoning TEXT NOT NULL,
     is_valid BOOLEAN NOT NULL DEFAULT FALSE,
+    external_signals JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
 );
 

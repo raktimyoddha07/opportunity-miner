@@ -4,6 +4,7 @@ from backend.reddit.client import get_reddit_client
 
 def collect_from_subreddits(
     subreddits: list[str],
+    feeds: list[str] = None,
     post_limit: int = 100,
     max_comment_depth: int = 3
 ) -> list[dict]:
@@ -19,15 +20,53 @@ def collect_from_subreddits(
         try:
             subreddit = client.subreddit(sub_name)
             
-            # Fetch from the four feeds
-            feeds = [
-                subreddit.hot(limit=post_limit),
-                subreddit.top(limit=post_limit),
-                subreddit.rising(limit=post_limit),
-                subreddit.new(limit=post_limit)
-            ]
+            # 1. Health Checks
+            try:
+                _ = subreddit.display_name
+                if subreddit.subreddit_type != "public":
+                    print(f"Skipping r/{sub_name}: Subreddit is not public (type: {subreddit.subreddit_type})")
+                    continue
+            except Exception as e:
+                print(f"Skipping r/{sub_name}: Subreddit does not exist or is inaccessible. Error: {e}")
+                continue
 
-            for feed in feeds:
+            subscribers = subreddit.subscribers
+            if subscribers is None or subscribers <= 5000:
+                print(f"Skipping r/{sub_name}: Subscriber count ({subscribers}) <= 5,000")
+                continue
+
+            new_posts = list(subreddit.new(limit=1))
+            if not new_posts:
+                print(f"Skipping r/{sub_name}: Subreddit has no posts")
+                continue
+            
+            last_post = new_posts[0]
+            last_post_time = datetime.fromtimestamp(last_post.created_utc, timezone.utc)
+            days_since_last_post = (datetime.now(timezone.utc) - last_post_time).days
+            if days_since_last_post > 30:
+                print(f"Skipping r/{sub_name}: Last post was {days_since_last_post} days ago (inactive)")
+                continue
+
+            # 2. Build Feeds list
+            active_feeds = feeds if feeds else ["hot", "top", "rising", "new"]
+            feed_iters = []
+            for f in active_feeds:
+                if f == "hot":
+                    feed_iters.append(subreddit.hot(limit=post_limit))
+                elif f == "new":
+                    feed_iters.append(subreddit.new(limit=post_limit))
+                elif f == "rising":
+                    feed_iters.append(subreddit.rising(limit=post_limit))
+                elif f == "controversial":
+                    feed_iters.append(subreddit.controversial(limit=post_limit))
+                elif f == "top":
+                    feed_iters.append(subreddit.top(limit=post_limit, time_filter="all"))
+                elif f == "top_week":
+                    feed_iters.append(subreddit.top(limit=post_limit, time_filter="week"))
+                elif f == "top_month":
+                    feed_iters.append(subreddit.top(limit=post_limit, time_filter="month"))
+
+            for feed in feed_iters:
                 for submission in feed:
                     if submission.id in seen_ids:
                         continue

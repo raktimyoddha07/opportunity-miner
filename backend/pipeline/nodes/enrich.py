@@ -122,6 +122,7 @@ def enrich_node(state: PipelineState) -> dict:
     Output: cleaned_documents (enriched + filtered)
     """
     docs = state.get("cleaned_documents", [])
+    stats = state.get("pipeline_stats") or {}
     enriched: list[dict] = []
     skipped = 0
 
@@ -148,8 +149,9 @@ def enrich_node(state: PipelineState) -> dict:
 
         enriched.append(updated)
 
-    print(
-        f"[enrich] {len(docs)} in → {len(enriched)} enriched "
-        f"({skipped} low-signal dropped)"
-    )
-    return {"cleaned_documents": enriched}
+    enrich_passed = len(enriched)
+    stats["enrich_passed"] = enrich_passed
+    stats["enrich_skipped"] = skipped
+    print(f"[ENRICH]       → {enrich_passed} passed urgency filter, {skipped} skipped")
+
+    return {"cleaned_documents": enriched, "pipeline_stats": stats}

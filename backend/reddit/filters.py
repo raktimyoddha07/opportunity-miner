@@ -2,7 +2,7 @@ import re
 
 # Standard low signal phrases to match exactly (lowercase, stripped)
 LOW_SIGNAL_PHRASES = {
-    "lol", "same", "this", "thanks", "good idea", "following", "same here", 
+    "lol", "same", "this", "thanks", "following", "same here", 
     "+1", "me too", "upvoted", "bump", "agreed", "interest", "interested"
 }
 

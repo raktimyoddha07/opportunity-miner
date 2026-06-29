@@ -8,6 +8,7 @@ def clean_node(state: PipelineState) -> dict:
     Outputs: cleaned_documents
     """
     source_docs = state.get("source_documents", [])
+    stats = state.get("pipeline_stats") or {}
     cleaned_docs = []
 
     for doc in source_docs:
@@ -20,4 +21,10 @@ def clean_node(state: PipelineState) -> dict:
             # We can log discarded items for debug/traceability
             print(f"Discarded document {doc.get('source_id')}: {reason}")
 
-    return {"cleaned_documents": cleaned_docs}
+    clean_kept = len(cleaned_docs)
+    clean_discarded = len(source_docs) - clean_kept
+    stats["clean_kept"] = clean_kept
+    stats["clean_discarded"] = clean_discarded
+    print(f"[CLEAN]        → {clean_kept} kept, {clean_discarded} discarded")
+
+    return {"cleaned_documents": cleaned_docs, "pipeline_stats": stats}

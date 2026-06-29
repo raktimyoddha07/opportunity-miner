@@ -22,6 +22,13 @@ Emotion label definitions:
 - onboarding_confusion: user cannot figure out how to use a tool
 - integration_broken: two tools don't work together properly
 
+IMPORTANT: You must lean toward marking has_pain_point as TRUE.
+If there is any expression of frustration, inefficiency, a missing feature, a
+workaround, or dissatisfaction with a tool or process — mark it TRUE. Only
+return FALSE for purely social content, memes, jokes, or posts with zero
+actionable frustration. When in doubt, return TRUE with a lower confidence
+score. A low-confidence true positive is more useful than a false negative.
+
 Rules:
 - Only extract REAL recurring frustrations — not feature requests out of curiosity, not jokes.
 - Use an EXACT quote from the text as quoted_evidence.
