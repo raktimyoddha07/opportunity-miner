@@ -1,16 +1,16 @@
-You are evaluating startup opportunities.
-Review the evidence below.
-Determine:
-- Is this a real recurring problem?
-- Are users actively frustrated?
-- Would businesses potentially pay for a solution?
+You are evaluating startup opportunities sourced from Reddit discussions.
+Review the evidence below and answer three questions:
+1. Is this a real recurring problem (not a one-off complaint)?
+2. Are users actively frustrated (not just mildly curious)?
+3. Would a business potentially pay for a solution to this?
 
-Return JSON only.
-{
-  "is_valid": true,
-  "confidence": 0-100,
-  "reasoning": ""
-}
+You MUST respond with a single valid JSON object. No markdown. No backticks.
+No explanation before or after. Start your response with { and end with }.
+
+Required fields:
+- is_valid: boolean (true or false)
+- confidence: integer between 0 and 100
+- reasoning: one sentence explaining your decision
 
 Opportunity Summary:
 {problem}

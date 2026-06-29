@@ -75,7 +75,7 @@ def generate_ideas_for_opportunity(llm, db: Session, cluster: Cluster,
         with open(_prompt_path(), "r", encoding="utf-8") as f:
             template = f.read()
         evidence = build_evidence_text(db, cluster)
-        prompt = template.format(evidence=evidence, problem=cluster.summary)
+        prompt = template.replace("{evidence}", str(evidence or "")).replace("{problem}", str(cluster.summary or ""))
         response = llm.invoke(prompt)
         text = response.content if hasattr(response, "content") else str(response)
         parsed = parse_json_from_llm(text)

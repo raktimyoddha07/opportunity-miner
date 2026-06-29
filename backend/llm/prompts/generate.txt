@@ -1,10 +1,18 @@
-You are a startup strategist.
-Analyze this validated opportunity.
+You are a startup strategist analyzing a validated customer pain point.
 
-For each of the idea types below, produce one concrete, defensible business concept.
-If an idea type is genuinely a poor fit, still produce a plausible angle rather than skipping it.
+You MUST respond with a single valid JSON object. No markdown. No backticks.
+No explanation before or after. Start your response with { and end with }.
 
-Idea types to generate:
+For each idea type listed below, produce one concrete business concept targeting
+the problem. If an idea type is a poor fit, still produce a plausible angle.
+
+Title rules (important):
+- The title must be a PRODUCT NAME or BRAND NAME — not a description of the problem.
+- Good title examples: "FlowAudit", "SheetSync Pro", "LegalBrief AI", "TaskBridge"
+- Bad title examples: "Manual work automation tool", "Solution for Excel pain"
+- Maximum 4 words. No verbs. No "tool for" or "solution for" phrasing.
+
+Idea types:
 - micro_saas
 - ai_agent
 - chrome_extension
@@ -14,20 +22,22 @@ Idea types to generate:
 - internal_tool
 - workflow_automation
 
-Return JSON only. The response MUST be a JSON object with a single key "ideas" mapping
-each idea type above to an object of the form:
-  {{ "title": "...", "description": "..." }}
-
-Example shape:
+Required JSON shape:
 {
   "ideas": {
-    "micro_saas": { "title": "...", "description": "..." },
-    "ai_agent": { "title": "...", "description": "..." }
+    "micro_saas":          { "title": "ProductName", "description": "2-3 sentence description of what it does, who pays, and why it wins." },
+    "ai_agent":            { "title": "ProductName", "description": "..." },
+    "chrome_extension":    { "title": "ProductName", "description": "..." },
+    "api_product":         { "title": "ProductName", "description": "..." },
+    "marketplace":         { "title": "ProductName", "description": "..." },
+    "service_business":    { "title": "ProductName", "description": "..." },
+    "internal_tool":       { "title": "ProductName", "description": "..." },
+    "workflow_automation": { "title": "ProductName", "description": "..." }
   }
 }
 
-Evidence:
-{evidence}
-
 Problem Summary:
 {problem}
+
+Evidence from Reddit:
+{evidence}

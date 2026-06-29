@@ -46,5 +46,11 @@ def compute_persistence(days: list) -> float:
 def opportunity_score(frequency: float, intensity: float,
                       diversity: float, persistence: float) -> float:
     """Compose the four normalized sub-signals into a 0-100 score."""
-    raw = frequency * intensity * diversity * persistence
+    persistence_floored = max(persistence, 0.1)
+    raw = (
+        frequency            * 0.35 +
+        intensity            * 0.30 +
+        diversity            * 0.25 +
+        persistence_floored  * 0.10
+    )
     return round(raw * 100.0, 2)

@@ -21,7 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { CATEGORY_LABELS, IDEA_TYPE_LABELS } from "@/lib/constants";
+import { CATEGORY_LABELS, EMOTION_LABELS, IDEA_TYPE_LABELS } from "@/lib/constants";
 import { getOpportunity, getIdeas } from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
 
@@ -69,6 +69,14 @@ export default async function OpportunityDetailPage({
 
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Badge variant="secondary">{CATEGORY_LABELS[opportunity.category]}</Badge>
+        {(() => {
+          const mainEmotion = painPoints.find((p) => p.emotion)?.emotion;
+          return mainEmotion && EMOTION_LABELS[mainEmotion] ? (
+            <Badge variant="outline" className="bg-muted/50">
+              {EMOTION_LABELS[mainEmotion]}
+            </Badge>
+          ) : null;
+        })()}
         <span>Confidence {opportunity.confidence}/100</span>
         <span>·</span>
         <span>Identified {formatDateTime(opportunity.created_at)}</span>

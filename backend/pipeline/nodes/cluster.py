@@ -95,8 +95,8 @@ def cluster_pain_points(pain_points: list[dict]) -> list[dict]:
 
 def _derive_name(category: str, summary: str) -> str:
     words = (summary or "").strip().split()
-    short = " ".join(words[:6])
-    return f"{category.replace('_', ' ').title()}: {short}" if short else category.replace("_", " ").title()
+    short = " ".join(words[:8]).strip().rstrip(".,;")
+    return short.capitalize() if short else category.replace("_", " ").title()
 
 
 def cluster_node(state: PipelineState) -> dict:

@@ -25,6 +25,22 @@ export const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS).map(([value, lab
   label,
 }));
 
+export const EMOTION_LABELS: Record<string, string> = {
+  frustrated_with_workaround: "Workaround Friction",
+  paying_for_bad_tool: "Bad Tool Frustration",
+  asking_for_missing_feature: "Missing Feature Request",
+  abandoned_by_vendor: "Abandoned by Vendor",
+  time_wasted: "Time Wasted",
+  data_loss_fear: "Data Loss Fear",
+  onboarding_confusion: "Onboarding Confusion",
+  integration_broken: "Broken Integration",
+};
+
+export const EMOTION_OPTIONS = Object.entries(EMOTION_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
 export const IDEA_TYPE_LABELS: Record<IdeaType, string> = {
   micro_saas: "Micro-SaaS",
   ai_agent: "AI Agent",

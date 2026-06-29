@@ -1,41 +1,33 @@
 You are a startup researcher analyzing a Reddit discussion for real business opportunities.
-Analyze the discussion below and extract any real customer pain points.
-Return JSON only — no markdown, no explanation.
 
-{
-  "has_pain_point": true,
-  "summary": "One sentence summary of the core problem",
-  "category": "one of: manual_work | missing_software | bad_software | workflow_bottleneck | reporting | compliance | data_entry | automation | communication | scheduling | integration_gap | expensive_service",
-  "emotion": "one of: frustrated_with_workaround | paying_for_bad_tool | asking_for_missing_feature | abandoned_by_vendor | time_wasted | data_loss_fear | onboarding_confusion | integration_broken",
-  "intensity": 3,
-  "quoted_evidence": "Exact quote from the text showing the pain",
-  "confidence": 70
-}
+You MUST respond with a single valid JSON object. No markdown. No backticks.
+No explanation before or after. Start your response with { and end with }.
 
-Emotion label definitions:
-- frustrated_with_workaround: user is doing manual steps to fix a broken process
-- paying_for_bad_tool: user is paying money for something that fails them
-- asking_for_missing_feature: user wants something that doesn't exist yet
-- abandoned_by_vendor: tool removed a feature, raised prices, or shut down
-- time_wasted: task takes far longer than it should
-- data_loss_fear: user is afraid of or experienced losing data/work
-- onboarding_confusion: user cannot figure out how to use a tool
-- integration_broken: two tools don't work together properly
+Analyze the discussion at the bottom of this message and extract any real customer pain point.
 
-IMPORTANT: You must lean toward marking has_pain_point as TRUE.
-If there is any expression of frustration, inefficiency, a missing feature, a
-workaround, or dissatisfaction with a tool or process — mark it TRUE. Only
-return FALSE for purely social content, memes, jokes, or posts with zero
-actionable frustration. When in doubt, return TRUE with a lower confidence
-score. A low-confidence true positive is more useful than a false negative.
+Required JSON fields:
+- has_pain_point: boolean. true if any frustration, inefficiency, missing feature, workaround, or dissatisfaction exists. false only for memes, jokes, or purely social content.
+- summary: string. One crisp sentence naming the SPECIFIC problem (not "user is frustrated" — name the actual tool/task/situation).
+- category: string. Exactly one of: manual_work | missing_software | bad_software | workflow_bottleneck | reporting | compliance | data_entry | automation | communication | scheduling | integration_gap | expensive_service
+- emotion: string. Exactly one of: frustrated_with_workaround | paying_for_bad_tool | asking_for_missing_feature | abandoned_by_vendor | time_wasted | data_loss_fear | onboarding_confusion | integration_broken
+- intensity: integer 1 to 5. (1=mild annoyance, 3=regular friction, 5=blocking or costing money)
+- quoted_evidence: string. Copy an exact phrase from the discussion that shows the pain. Maximum 40 words.
+- confidence: integer 0 to 100. How confident are you this is a real recurring frustration?
 
-Rules:
-- Only extract REAL recurring frustrations — not feature requests out of curiosity, not jokes.
-- Use an EXACT quote from the text as quoted_evidence.
-- If no genuine pain point exists, set has_pain_point to false.
-- Intensity: 1=mild annoyance, 3=regular friction, 5=blocking / costing money.
-- Confidence: 0-100. Be conservative. Only go above 70 if the evidence is explicit and strong.
-- Ignore hypotheticals, startup idea discussions, personal project requests, and promotional content.
+Emotion definitions:
+frustrated_with_workaround = doing manual steps to fix a broken process
+paying_for_bad_tool = paying money for something that fails them
+asking_for_missing_feature = wants something that does not exist yet
+abandoned_by_vendor = tool removed a feature, raised prices, or shut down
+time_wasted = task takes far longer than it should
+data_loss_fear = afraid of or experienced losing data or work
+onboarding_confusion = cannot figure out how to use a tool
+integration_broken = two tools do not work together properly
+
+Scoring rules:
+- When in doubt set has_pain_point to true with confidence between 30 and 50.
+- Only set confidence above 70 if the frustration is explicit, specific, and clearly recurring.
+- Ignore hypotheticals, startup idea pitches, personal project requests, and promotional posts.
 
 Discussion:
 {content}

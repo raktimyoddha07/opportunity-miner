@@ -39,7 +39,7 @@ def extract_single_pain_point(llm, content: str, prompt_template: str) -> dict:
     """
     Invokes the LLM to analyze content and parse results, retrying up to 3 times on failures.
     """
-    prompt_text = prompt_template.format(content=content)
+    prompt_text = prompt_template.replace("{content}", content)
     for attempt in range(1, 4):
         try:
             response = llm.invoke(prompt_text)

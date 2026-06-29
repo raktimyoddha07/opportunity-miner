@@ -145,7 +145,7 @@ def validate_single_cluster(llm, cluster_dict: dict, db: Session, run_id) -> dic
         with open(_prompt_path(), "r", encoding="utf-8") as f:
             template = f.read()
         evidence = build_evidence_text(pain_points, by_pp)
-        prompt = template.format(problem=cluster.summary, evidence=evidence)
+        prompt = template.replace("{problem}", str(cluster.summary or "")).replace("{evidence}", str(evidence or ""))
         response = llm.invoke(prompt)
         text = response.content if hasattr(response, "content") else str(response)
         parsed = parse_json_from_llm(text)

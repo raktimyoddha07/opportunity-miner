@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScoreBadge } from "@/components/score-badge";
-import { CATEGORY_LABELS, CATEGORY_OPTIONS } from "@/lib/constants";
+import { CATEGORY_LABELS, CATEGORY_OPTIONS, EMOTION_LABELS, EMOTION_OPTIONS } from "@/lib/constants";
 import { cn, truncate } from "@/lib/utils";
 import type { Opportunity } from "@/lib/types";
 
@@ -37,6 +37,7 @@ interface OpportunitiesTableProps {
 export function OpportunitiesTable({ opportunities }: OpportunitiesTableProps) {
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState<string>("all");
+  const [emotion, setEmotion] = React.useState<string>("all");
   const [validity, setValidity] = React.useState<string>("all");
   const [sortKey, setSortKey] = React.useState<SortKey>("score");
   const [asc, setAsc] = React.useState(false);
@@ -44,6 +45,12 @@ export function OpportunitiesTable({ opportunities }: OpportunitiesTableProps) {
   const filtered = React.useMemo(() => {
     let rows = opportunities;
     if (category !== "all") rows = rows.filter((o) => o.category === category);
+    if (emotion !== "all") {
+      rows = rows.filter((o) => {
+        const pps = o.cluster?.pain_points || [];
+        return pps.some((p) => p.emotion === emotion);
+      });
+    }
     if (validity === "valid") rows = rows.filter((o) => o.is_valid);
     if (validity === "pending") rows = rows.filter((o) => !o.is_valid);
     if (query.trim()) {
@@ -59,7 +66,7 @@ export function OpportunitiesTable({ opportunities }: OpportunitiesTableProps) {
       return asc ? cmp : -cmp;
     });
     return rows;
-  }, [opportunities, query, category, validity, sortKey, asc]);
+  }, [opportunities, query, category, emotion, validity, sortKey, asc]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setAsc((v) => !v);
@@ -92,7 +99,7 @@ export function OpportunitiesTable({ opportunities }: OpportunitiesTableProps) {
           className="sm:max-w-xs"
         />
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="sm:w-[200px]">
+          <SelectTrigger className="sm:w-[180px]">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -104,8 +111,21 @@ export function OpportunitiesTable({ opportunities }: OpportunitiesTableProps) {
             ))}
           </SelectContent>
         </Select>
+        <Select value={emotion} onValueChange={setEmotion}>
+          <SelectTrigger className="sm:w-[180px]">
+            <SelectValue placeholder="Emotion Signal" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All signals</SelectItem>
+            {EMOTION_OPTIONS.map((e) => (
+              <SelectItem key={e.value} value={e.value}>
+                {e.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={validity} onValueChange={setValidity}>
-          <SelectTrigger className="sm:w-[160px]">
+          <SelectTrigger className="sm:w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -122,7 +142,7 @@ export function OpportunitiesTable({ opportunities }: OpportunitiesTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>{sortBtn("title", "Opportunity")}</TableHead>
-              <TableHead>Category</TableHead>
+              <TableHead>Category & Signals</TableHead>
               <TableHead className="text-right">{sortBtn("score", "Score")}</TableHead>
               <TableHead className="text-right">{sortBtn("confidence", "Confidence")}</TableHead>
               <TableHead>Status</TableHead>
@@ -130,39 +150,49 @@ export function OpportunitiesTable({ opportunities }: OpportunitiesTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((o) => (
-              <TableRow key={o.id}>
-                <TableCell className="max-w-md">
-                  <Link href={`/opportunities/${o.id}`} className="block">
-                    <p className="font-medium hover:underline">{o.title}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-1">
-                      {truncate(o.summary, 90)}
-                    </p>
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{CATEGORY_LABELS[o.category]}</Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <ScoreBadge score={o.score} />
-                </TableCell>
-                <TableCell className="text-right font-mono text-sm">{o.confidence}</TableCell>
-                <TableCell>
-                  {o.is_valid ? (
-                    <Badge variant="success">Validated</Badge>
-                  ) : (
-                    <Badge variant="outline">Pending</Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Button asChild variant="ghost" size="icon">
-                    <Link href={`/opportunities/${o.id}`}>
-                      <ExternalLink className="h-4 w-4" />
+            {filtered.map((o) => {
+              const mainEmotion = o.cluster?.pain_points?.find((p) => p.emotion)?.emotion;
+              return (
+                <TableRow key={o.id}>
+                  <TableCell className="max-w-md">
+                    <Link href={`/opportunities/${o.id}`} className="block">
+                      <p className="font-medium hover:underline">{o.title}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {truncate(o.summary, 90)}
+                      </p>
                     </Link>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary">{CATEGORY_LABELS[o.category]}</Badge>
+                      {mainEmotion && EMOTION_LABELS[mainEmotion] && (
+                        <Badge variant="outline" className="text-[10px] bg-muted/50">
+                          {EMOTION_LABELS[mainEmotion]}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ScoreBadge score={o.score} />
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm">{o.confidence}</TableCell>
+                  <TableCell>
+                    {o.is_valid ? (
+                      <Badge variant="success">Validated</Badge>
+                    ) : (
+                      <Badge variant="outline">Pending</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button asChild variant="ghost" size="icon">
+                      <Link href={`/opportunities/${o.id}`}>
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-sm text-muted-foreground">

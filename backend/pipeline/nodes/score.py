@@ -121,8 +121,13 @@ def score_clusters(clusters: list[dict], run_id, db: Session) -> list[dict]:
         diversity = compute_diversity(source_docs)
         persistence = compute_persistence(source_docs)
 
-        raw = frequency * intensity * diversity * persistence
-        score = round(raw * 100.0, 2)
+        persistence_floored = max(persistence, 0.1)
+        score = round((
+            frequency            * 0.35 +
+            intensity            * 0.30 +
+            diversity            * 0.25 +
+            persistence_floored  * 0.10
+        ) * 100.0, 2)
 
         # Persist back onto the cluster row
         cluster.frequency = round(frequency, 4)
