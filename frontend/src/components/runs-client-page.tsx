@@ -175,14 +175,19 @@ export function RunsClientPage({ initialRuns, initialTrends }: RunsClientPagePro
     [lastTwo[1] ?? "curr"]: { label: lastTwo[1] ?? "Latest", color: "hsl(var(--chart-1))" },
   };
 
-  // Poll for runs every 5 seconds if a run is running.
+  // Poll for run status every 10 s while a run is active.
+  // Backs off to 30 s after 3 consecutive failures so a busy Ollama backend
+  // doesn't get hammered with rapid retries.
   React.useEffect(() => {
     const hasRunning = runs.some((r) => r.status === "running");
     if (!hasRunning) return;
 
-    const interval = setInterval(async () => {
+    let consecutiveFails = 0;
+
+    const poll = async () => {
       try {
         const latestRuns = await getRuns();
+        consecutiveFails = 0; // reset on success
         let changed = false;
 
         latestRuns.forEach((r) => {
@@ -204,11 +209,31 @@ export function RunsClientPage({ initialRuns, initialTrends }: RunsClientPagePro
           setRuns(latestRuns);
         }
       } catch (err) {
-        console.error("Polling runs failed", err);
+        consecutiveFails++;
+        if (consecutiveFails <= 3) {
+          console.error("Polling runs failed", err);
+        } else if (consecutiveFails === 4) {
+          console.warn("[runs] Backend appears busy — backing off poll to 30 s");
+        }
       }
-    }, 5000);
+    };
 
-    return () => clearInterval(interval);
+    // Adaptive interval: 10 s normally, 30 s if the backend is failing repeatedly.
+    const NORMAL_INTERVAL = 10_000;
+    const BACKOFF_INTERVAL = 30_000;
+    const BACKOFF_THRESHOLD = 3;
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const delay = consecutiveFails > BACKOFF_THRESHOLD ? BACKOFF_INTERVAL : NORMAL_INTERVAL;
+      timeoutId = setTimeout(async () => {
+        await poll();
+        schedule(); // re-schedule after each poll completes
+      }, delay);
+    };
+    schedule();
+
+    return () => clearTimeout(timeoutId);
   }, [runs, router]);
 
   async function handleStartRun() {

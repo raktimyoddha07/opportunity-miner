@@ -17,7 +17,7 @@ def build_llm(config: dict):
     if provider == "ollama":
         from langchain_ollama import ChatOllama
         base_url = config.get("base_url") or settings.OLLAMA_BASE_URL
-        return ChatOllama(model=model, base_url=base_url, temperature=temperature)
+        return ChatOllama(model=model, base_url=base_url, temperature=temperature, format="json")
 
     elif provider == "openai":
         from langchain_openai import ChatOpenAI

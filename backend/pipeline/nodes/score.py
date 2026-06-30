@@ -43,9 +43,6 @@ def _gather_evidence(db: Session, cluster: Cluster):
             .filter(PainPoint.id.in_(pp_ids))
             .all()
         )
-    total_mentions = db.query(PainPoint).join(
-        Cluster, Cluster.id == cluster.id  # placeholder, overridden below
-    )
     return pain_points, source_docs
 
 

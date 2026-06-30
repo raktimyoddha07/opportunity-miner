@@ -28,8 +28,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     // Never cache list/detail reads — the database grows continuously.
     cache: "no-store",
-    // Fail fast — don't wait 300 s for a backend that's down.
-    signal: AbortSignal.timeout(10_000),
+    // 60s: generous enough for a backend that's under heavy Ollama inference load.
+    // Pipeline runs are on background threads; only status polls hit this path.
+    signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} on ${path}`);
   return (await res.json()) as T;
@@ -51,11 +52,14 @@ export async function startRun(payload: {
   subreddits: string[];
   llm_config?: Record<string, unknown>;
 }): Promise<Run | null> {
+  // No short timeout — the backend spawns a thread immediately, but if it's
+  // temporarily busy (e.g. under Ollama load at startup) we wait up to 2 min.
   const res = await fetch(`${BASE_URL}/runs/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     cache: "no-store",
+    signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) throw new Error(`Failed to start run: ${res.status}`);
   return (await res.json()) as Run;
@@ -128,11 +132,13 @@ export async function getIdea(id: string): Promise<Idea | null> {
 }
 
 export async function generateIdeas(opportunityId: string): Promise<Idea[] | null> {
+  // Idea generation can take 30-90s on local Ollama — use a 5-min timeout.
   const res = await fetch(`${BASE_URL}/ideas/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ opportunity_id: opportunityId }),
     cache: "no-store",
+    signal: AbortSignal.timeout(300_000),
   });
   if (!res.ok) throw new Error(`Failed to generate ideas: ${res.status}`);
   return (await res.json()) as Idea[];

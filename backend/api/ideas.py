@@ -20,10 +20,8 @@ from backend.db.connection import get_db
 from backend.db.models import Cluster, Idea, Opportunity, PainPoint, SourceDocument
 from backend.dependencies import resolve_llm_config
 from backend.llm.factory import build_llm
-from backend.pipeline.nodes.generate import (
-    VALID_IDEA_TYPES,
-    parse_json_from_llm,
-)
+from backend.pipeline.nodes.generate import VALID_IDEA_TYPES
+from backend.llm.parser import parse_json_from_llm
 
 router = APIRouter(tags=["ideas"])
 
@@ -136,7 +134,7 @@ def generate_ideas(
         with open(_prompt_path(), "r", encoding="utf-8") as f:
             template = f.read()
         evidence = _build_evidence_text(db, cluster)
-        prompt = template.format(evidence=evidence, problem=cluster.summary)
+        prompt = template.replace("{evidence}", str(evidence or "")).replace("{problem}", str(cluster.summary or ""))
         response = llm.invoke(prompt)
         text = response.content if hasattr(response, "content") else str(response)
         parsed = parse_json_from_llm(text)

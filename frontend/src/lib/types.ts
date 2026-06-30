@@ -88,6 +88,7 @@ export interface PainPoint {
   has_pain_point: boolean;
   summary: string | null;
   category: Category | null;
+  emotion: string | null;   // one of 8 emotion taxonomy values (e.g. "paying_for_bad_tool")
   intensity: number | null; // 1-5
   quoted_evidence: string | null;
   confidence: number | null; // 0-100

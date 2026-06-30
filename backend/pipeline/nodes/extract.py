@@ -28,12 +28,7 @@ def get_extract_prompt_template() -> str:
     with open(prompt_path, "r", encoding="utf-8") as f:
         return f.read()
 
-def parse_json_from_llm(output_text: str) -> dict:
-    """
-    Strips markdown JSON wrappers and parses string to dict.
-    """
-    cleaned = output_text.replace("```json", "").replace("```", "").strip()
-    return json.loads(cleaned)
+from backend.llm.parser import parse_json_from_llm
 
 def extract_single_pain_point(llm, content: str, prompt_template: str) -> dict:
     """
@@ -128,6 +123,7 @@ def extract_node(state: PipelineState) -> dict:
                     has_pain_point=result["has_pain_point"],
                     summary=result["summary"],
                     category=result["category"],
+                    emotion=result["emotion"],
                     intensity=result["intensity"],
                     quoted_evidence=result["quoted_evidence"],
                     confidence=result["confidence"]
@@ -141,6 +137,7 @@ def extract_node(state: PipelineState) -> dict:
                     "has_pain_point": db_pain_point.has_pain_point,
                     "summary": db_pain_point.summary,
                     "category": db_pain_point.category,
+                    "emotion": db_pain_point.emotion,
                     "intensity": db_pain_point.intensity,
                     "quoted_evidence": db_pain_point.quoted_evidence,
                     "confidence": db_pain_point.confidence

@@ -38,20 +38,50 @@ def serialize_opportunity(opp: Opportunity, include_nested: bool = False) -> dic
     }
     if include_nested:
         cluster = opp.cluster
-        payload["cluster"] = {
-            "id": str(cluster.id),
-            "run_id": str(cluster.run_id),
-            "name": cluster.name,
-            "summary": cluster.summary,
-            "category": cluster.category,
-            "score": cluster.score,
-            "frequency": cluster.frequency,
-            "intensity": cluster.intensity,
-            "diversity": cluster.diversity,
-            "persistence": cluster.persistence,
-            "duplicate_count": cluster.duplicate_count,
-            "created_at": _iso(cluster.created_at),
-        } if cluster else None
+        if cluster:
+            pain_points_list = []
+            for pp in (cluster.pain_points or []):
+                src = pp.source_document
+                pp_dict = {
+                    "id": str(pp.id),
+                    "run_id": str(pp.run_id),
+                    "source_document_id": str(pp.source_document_id),
+                    "has_pain_point": pp.has_pain_point,
+                    "summary": pp.summary,
+                    "category": pp.category,
+                    "intensity": pp.intensity,
+                    "quoted_evidence": pp.quoted_evidence,
+                    "confidence": pp.confidence,
+                    "emotion": getattr(pp, "emotion", None),
+                    "created_at": _iso(pp.created_at),
+                }
+                if src:
+                    pp_dict["source_document"] = {
+                        "id": str(src.id),
+                        "author": src.author,
+                        "url": src.url,
+                        "metadata": src.raw_metadata or {},
+                        "created_at": _iso(src.created_at),
+                    }
+                pain_points_list.append(pp_dict)
+
+            payload["cluster"] = {
+                "id": str(cluster.id),
+                "run_id": str(cluster.run_id),
+                "name": cluster.name,
+                "summary": cluster.summary,
+                "category": cluster.category,
+                "score": cluster.score,
+                "frequency": cluster.frequency,
+                "intensity": cluster.intensity,
+                "diversity": cluster.diversity,
+                "persistence": cluster.persistence,
+                "duplicate_count": cluster.duplicate_count,
+                "created_at": _iso(cluster.created_at),
+                "pain_points": pain_points_list,
+            }
+        else:
+            payload["cluster"] = None
         payload["ideas"] = [
             {
                 "id": str(i.id),

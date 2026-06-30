@@ -71,6 +71,7 @@ class PainPoint(Base):
     has_pain_point = Column(Boolean, nullable=False, default=False)
     summary = Column(Text, nullable=True)
     category = Column(String(100), nullable=True)  # category constraint checked in logic
+    emotion = Column(String(100), nullable=True)   # one of 8 emotion taxonomy values
     intensity = Column(Integer, nullable=True)  # 1-5
     quoted_evidence = Column(Text, nullable=True)
     confidence = Column(Integer, nullable=True)  # 0-100

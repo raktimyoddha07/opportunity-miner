@@ -44,9 +44,7 @@ def _prompt_path() -> str:
     )
 
 
-def parse_json_from_llm(output_text: str) -> dict:
-    cleaned = output_text.replace("```json", "").replace("```", "").strip()
-    return json.loads(cleaned)
+from backend.llm.parser import parse_json_from_llm
 
 
 def build_evidence_text(db: Session, cluster: Cluster) -> str:
